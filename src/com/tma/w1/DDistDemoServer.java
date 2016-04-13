@@ -90,8 +90,8 @@ public class DDistDemoServer {
             if (socket != null) {
                 System.out.println("Connection from " + socket);
 
-                Thread listenThread = new Thread(() -> listenToClient(socket));
-                listenThread.start();
+                Thread sendThread = new Thread(() -> sendToClient(socket));
+                sendThread.start();
 
                 try {
                     BufferedReader fromClient = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -101,7 +101,7 @@ public class DDistDemoServer {
                         System.out.println("From the client: " + s);
                     }
                     socket.close();
-                    listenThread.interrupt();
+                    sendThread.interrupt();
                 } catch (IOException e) {
                     // We report but otherwise ignore IOExceptions
                     System.err.println(e);
@@ -118,7 +118,7 @@ public class DDistDemoServer {
         System.out.println("Goodbuy world!");
     }
 
-    private void listenToClient(Socket socket) {
+    private void sendToClient(Socket socket) {
         try {
             // For reading from standard input
             BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
