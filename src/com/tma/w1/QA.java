@@ -14,11 +14,11 @@ public class QA implements Serializable{
 	return question;
     }
 
-    public void setAnswer(String q) {
-	question = q;
+    public void setAnswer(String a) {
+	answer = a;
     }
 
     public String getAnswer() {
-	return question;
+	return answer;
     }
 }

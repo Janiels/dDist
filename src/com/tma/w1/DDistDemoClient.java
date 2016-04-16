@@ -73,11 +73,10 @@ public class DDistDemoClient {
                 String s;
                 // Read from standard input and send to server
                 // Ctrl-D terminates the connection
-                System.out.print("Type something for the server and then RETURN> ");
+                System.out.print("Write to server: ");
                 while ((s = stdin.readLine()) != null) {
                     QA qa = new QA();
                     qa.setQuestion(s);
-                    System.out.print("Write to server: ");
                     toServer.writeObject(qa);
                 }
                 socket.close();
