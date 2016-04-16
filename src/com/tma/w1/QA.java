@@ -1,3 +1,4 @@
+package com.tma.w1;
 
 public class QA {
     private String question;

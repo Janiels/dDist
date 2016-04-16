@@ -2,6 +2,8 @@ package com.tma.w1;
 
 import java.net.*;
 import java.io.*;
+import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * A very simple server which will way for a connection from a client and print
@@ -19,6 +21,7 @@ public class DDistDemoServer {
      */
     protected int portNumber = 40615;
     protected ServerSocket serverSocket;
+    private LinkedBlockingQueue<QA> qaQueue = new LinkedBlockingQueue<>();
 
     /**
      * Will print out the IP address of the local host and the port on which this
@@ -90,18 +93,31 @@ public class DDistDemoServer {
             if (socket != null) {
                 System.out.println("Connection from " + socket);
 
-                Thread sendThread = new Thread(() -> sendToClient(socket));
-                sendThread.start();
+                Thread addToQueueThread = new Thread(() -> addToQueue(socket));
+                addToQueueThread.start();
+
+//                Thread sendThread = new Thread(() -> sendToClient(socket));
+//                sendThread.start();
 
                 try {
-                    BufferedReader fromClient = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                    String s;
+                    ObjectOutputStream toClient = new ObjectOutputStream(socket.getOutputStream());
+                    BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
+
+                    QA qa;
                     // Read and print what the client is sending
-                    while ((s = fromClient.readLine()) != null) { // Ctrl-D terminates the connection
-                        System.out.println("From the client: " + s);
+                    while ((qa = qaQueue.poll()) != null) {// Ctrl-D terminates the connection
+                        System.out.println("Client question is: " + qa.getQuestion());
+                        String s;
+
+                        // barrier to wait for user input
+                        while (true) {
+                            if (!((s = stdin.readLine()) == null)) break;
+                        }
+                        qa.setAnswer(s);
+                        toClient.writeObject(qa);
                     }
                     socket.close();
-                    sendThread.interrupt();
+                    addToQueueThread.interrupt();
                 } catch (IOException e) {
                     // We report but otherwise ignore IOExceptions
                     System.err.println(e);
@@ -118,12 +134,27 @@ public class DDistDemoServer {
         System.out.println("Goodbuy world!");
     }
 
+    private void addToQueue(Socket socket) {
+        ObjectInputStream fromClient = null;
+        try {
+            fromClient = new ObjectInputStream(socket.getInputStream());
+            QA qa;
+            while ((qa = (QA) fromClient.readObject()) != null) {
+                qaQueue.put(qa);
+            }
+        } catch (IOException | ClassNotFoundException | InterruptedException e) {
+            e.printStackTrace();
+        }
+
+
+    }
+
     private void sendToClient(Socket socket) {
         try {
             // For reading from standard input
             BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
             // For sending text to the server
-            PrintWriter toServer = new PrintWriter(socket.getOutputStream(),true);
+            PrintWriter toServer = new PrintWriter(socket.getOutputStream(), true);
             String s;
             // Read from standard input and send to server
             // Ctrl-D terminates the connection
