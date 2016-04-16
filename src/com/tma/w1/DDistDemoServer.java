@@ -105,7 +105,7 @@ public class DDistDemoServer {
 
                     QA qa;
                     // Read and print what the client is sending
-                    while ((qa = qaQueue.poll()) != null) {// Ctrl-D terminates the connection
+                    while ((qa = qaQueue.take()) != null) {// Ctrl-D terminates the connection
                         System.out.println("Client question is: " + qa.getQuestion());
                         String s;
 
@@ -118,7 +118,7 @@ public class DDistDemoServer {
                     }
                     socket.close();
                     addToQueueThread.interrupt();
-                } catch (IOException e) {
+                } catch (IOException | InterruptedException e) {
                     // We report but otherwise ignore IOExceptions
                     System.err.println(e);
                 }

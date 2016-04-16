@@ -64,13 +64,10 @@ public class DDistDemoClient {
             try {
                 ObjectOutputStream toServer = new ObjectOutputStream(socket.getOutputStream());
 
-
                 // For reading from standard input
                 BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
 
                 // For sending text to the server
-
-
 
 //                PrintWriter toServer = new PrintWriter(socket.getOutputStream(), true);
                 String s;
