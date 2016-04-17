@@ -59,7 +59,7 @@ public class EventReplayer {
     }
 
     public void setPeer(Socket peer) {
-        // don't send old msg to new client
+        // Do not send old messages that weren't sent out already.
         dec.eventHistory.clear();
         this.peer = peer;
         new Thread(() -> acceptFromPeer(peer)).start();
