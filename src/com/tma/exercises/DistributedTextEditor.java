@@ -79,13 +79,13 @@ public class DistributedTextEditor extends JFrame {
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         pack();
         area1.addKeyListener(k1);
-        setTitle("Disconnected");
+        setDisconnected();
         setVisible(true);
         area1.insert("Example of how to capture stuff from the event queue and replay it in another buffer.\n" +
                 "Try to type and delete stuff in the top area.\n" +
                 "Then figure out how it works.\n", 0);
 
-        er = new EventReplayer(dec, area2);
+        er = new EventReplayer(dec, area2, this);
     }
 
     private KeyListener k1 = new KeyAdapter() {
@@ -129,7 +129,7 @@ public class DistributedTextEditor extends JFrame {
                     Socket clientSocket;
                     try {
                         clientSocket = serverSocket.accept();
-                        EventQueue.invokeLater(()->{
+                        EventQueue.invokeLater(() -> {
                             area1.setText("");
                             area2.setText("");
                             er.setPeer(clientSocket);
@@ -173,7 +173,8 @@ public class DistributedTextEditor extends JFrame {
                         changed = false;
                         Save.setEnabled(false);
                         SaveAs.setEnabled(false);
-
+                        // old text is removed.
+                        area2.setText("");
                         er.setPeer(server);
                     } else {
                         area1.setText("Could not connect!");
@@ -193,10 +194,16 @@ public class DistributedTextEditor extends JFrame {
 
     Action Disconnect = new AbstractAction("Disconnect") {
         public void actionPerformed(ActionEvent e) {
-            setTitle("Disconnected");
+            setDisconnected();
             er.disconnectPeer();
         }
     };
+
+    public void setDisconnected() {
+        if (serverSocket == null) {
+            setTitle("Disconnected");
+        }
+    }
 
     Action Save = new AbstractAction("Save") {
         public void actionPerformed(ActionEvent e) {
@@ -252,5 +259,6 @@ public class DistributedTextEditor extends JFrame {
     public static void main(String[] arg) {
         new DistributedTextEditor();
     }
+
 
 }

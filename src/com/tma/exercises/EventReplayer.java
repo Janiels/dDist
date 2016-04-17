@@ -1,6 +1,6 @@
 package com.tma.exercises;
 
-import javax.swing.JTextArea;
+import javax.swing.*;
 import java.awt.EventQueue;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -16,14 +16,16 @@ import java.net.Socket;
  */
 public class EventReplayer {
 
+    private final DistributedTextEditor editor;
     private DocumentEventCapturer dec;
     private JTextArea area;
     private Socket peer;
     private Thread send;
 
-    public EventReplayer(DocumentEventCapturer dec, JTextArea area) {
+    public EventReplayer(DocumentEventCapturer dec, JTextArea area, DistributedTextEditor editor) {
         this.dec = dec;
         this.area = area;
+        this.editor = editor;
     }
 
     private void acceptFromPeer(Socket peer) {
@@ -71,6 +73,7 @@ public class EventReplayer {
         }
         try {
             send.interrupt();
+            editor.setDisconnected();
             peer.close();
         } catch (IOException e) {
             e.printStackTrace();
