@@ -18,6 +18,8 @@ public class EventReplayer {
 
     private DocumentEventCapturer dec;
     private JTextArea area;
+    private Socket peer;
+    private Thread send;
 
     public EventReplayer(DocumentEventCapturer dec, JTextArea area) {
         this.dec = dec;
@@ -27,7 +29,7 @@ public class EventReplayer {
     private void acceptFromPeer(Socket peer) {
         try (ObjectInputStream in = new ObjectInputStream(peer.getInputStream())) {
             while (true) {
-                MyTextEvent event = (MyTextEvent)in.readObject();
+                MyTextEvent event = (MyTextEvent) in.readObject();
                 EventQueue.invokeLater(() -> {
                     try {
                         event.perform(area);
@@ -39,11 +41,7 @@ public class EventReplayer {
                 });
             }
         } catch (IOException | ClassNotFoundException e) {
-            try {
-                peer.close();
-            } catch (IOException eio) {
-                eio.printStackTrace();
-            }
+            disconnectPeer();
         }
     }
 
@@ -59,7 +57,23 @@ public class EventReplayer {
     }
 
     public void setPeer(Socket peer) {
+        // don't send old msg to new client
+        dec.eventHistory.clear();
+        this.peer = peer;
         new Thread(() -> acceptFromPeer(peer)).start();
-        new Thread(() -> sendToPeer(peer)).start();
+        send = new Thread(() -> sendToPeer(peer));
+        send.start();
+    }
+
+    public void disconnectPeer() {
+        if (peer == null) {
+            return;
+        }
+        try {
+            send.interrupt();
+            peer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }

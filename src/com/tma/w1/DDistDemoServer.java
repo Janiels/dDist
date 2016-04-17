@@ -100,15 +100,13 @@ public class DDistDemoServer {
 //                sendThread.start();
 
                 try {
-                    ObjectOutputStream toClient = new ObjectOutputStream(socket.getOutputStream());
-                    BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
-
                     QA qa;
                     // Read and print what the client is sending
                     while ((qa = qaQueue.take()) != null) {// Ctrl-D terminates the connection
                         System.out.println("Client question is: " + qa.getQuestion());
                         String s;
-
+                        ObjectOutputStream toClient = new ObjectOutputStream(socket.getOutputStream());
+                        BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
                         // barrier to wait for user input
                         while (true) {
                             if (!((s = stdin.readLine()) == null)) break;

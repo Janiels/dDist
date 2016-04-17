@@ -129,12 +129,15 @@ public class DistributedTextEditor extends JFrame {
                     Socket clientSocket;
                     try {
                         clientSocket = serverSocket.accept();
+                        EventQueue.invokeLater(()->{
+                            area1.setText("");
+                            area2.setText("");
+                            er.setPeer(clientSocket);
+                        });
                     } catch (IOException ex) {
                         ex.printStackTrace();
                         break;
                     }
-
-                    er.setPeer(clientSocket);
                 }
             }).start();
 
@@ -191,7 +194,7 @@ public class DistributedTextEditor extends JFrame {
     Action Disconnect = new AbstractAction("Disconnect") {
         public void actionPerformed(ActionEvent e) {
             setTitle("Disconnected");
-            // TODO
+            er.disconnectPeer();
         }
     };
 
