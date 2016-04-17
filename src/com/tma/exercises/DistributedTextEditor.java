@@ -5,8 +5,10 @@ import java.awt.event.*;
 import java.io.*;
 import javax.swing.*;
 import javax.swing.text.*;
-import javax.swing.event.*;
-import java.util.concurrent.*;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.UnknownHostException;
 
 public class DistributedTextEditor extends JFrame {
 
@@ -16,7 +18,6 @@ public class DistributedTextEditor extends JFrame {
     private JTextField portNumber = new JTextField("Port number here");
 
     private EventReplayer er;
-    private Thread ert;
 
     private JFileChooser dialog =
             new JFileChooser(System.getProperty("user.dir"));
@@ -25,6 +26,7 @@ public class DistributedTextEditor extends JFrame {
     private boolean changed = false;
     private boolean connected = false;
     private DocumentEventCapturer dec = new DocumentEventCapturer();
+    private ServerSocket serverSocket;
 
     public DistributedTextEditor() {
         area1.setFont(new Font("Monospaced", Font.PLAIN, 12));
@@ -84,8 +86,6 @@ public class DistributedTextEditor extends JFrame {
                 "Then figure out how it works.\n", 0);
 
         er = new EventReplayer(dec, area2);
-        ert = new Thread(er);
-        ert.start();
     }
 
     private KeyListener k1 = new KeyAdapter() {
@@ -100,8 +100,44 @@ public class DistributedTextEditor extends JFrame {
         public void actionPerformed(ActionEvent e) {
             saveOld();
             area1.setText("");
-            // TODO: Become a server listening for connections on some port.
-            setTitle("I'm listening on xxx.xxx.xxx:zzzz");
+            int port;
+            try {
+                port = Integer.parseInt(portNumber.getText());
+            } catch (NumberFormatException ex) {
+                area1.setText("Can't parse " + portNumber.getText());
+                return;
+            }
+
+            try {
+                serverSocket = new ServerSocket(port);
+            } catch (IOException ex) {
+                area1.setText("Could not start listening" + System.lineSeparator() + ex);
+                return;
+            }
+
+            try {
+                InetAddress localhost = InetAddress.getLocalHost();
+                String localhostAddress = localhost.getHostAddress();
+                setTitle("I'm listening on " + localhostAddress + ":" + port);
+            } catch (UnknownHostException ex) {
+                area1.setText("Cannot resolve the Internet address of the local host.");
+                return;
+            }
+
+            new Thread(() -> {
+                while (true) {
+                    Socket clientSocket;
+                    try {
+                        clientSocket = serverSocket.accept();
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                        break;
+                    }
+
+                    er.setPeer(clientSocket);
+                }
+            }).start();
+
             changed = false;
             Save.setEnabled(false);
             SaveAs.setEnabled(false);
@@ -112,12 +148,45 @@ public class DistributedTextEditor extends JFrame {
         public void actionPerformed(ActionEvent e) {
             saveOld();
             area1.setText("");
-            setTitle("Connecting to " + ipaddress.getText() + ":" + portNumber.getText() + "...");
-            changed = false;
-            Save.setEnabled(false);
-            SaveAs.setEnabled(false);
+            int port;
+            try {
+                port = Integer.parseInt(portNumber.getText());
+            } catch (NumberFormatException ex) {
+                area1.setText("Can't parse " + portNumber.getText());
+                return;
+            }
+
+            String host = ipaddress.getText() + ":" + port;
+            setTitle("Connecting to " + host + "...");
+
+            new Thread(() ->
+            {
+                final Socket server = connectToServer(port);
+
+                EventQueue.invokeLater(() -> {
+                    if (server != null) {
+                        setTitle("Connected to " + host);
+
+                        changed = false;
+                        Save.setEnabled(false);
+                        SaveAs.setEnabled(false);
+
+                        er.setPeer(server);
+                    } else {
+                        area1.setText("Could not connect!");
+                    }
+                });
+            }).start();
         }
     };
+
+    private Socket connectToServer(int port) {
+        try {
+            return new Socket(ipaddress.getText(), port);
+        } catch (IOException e1) {
+            return null;
+        }
+    }
 
     Action Disconnect = new AbstractAction("Disconnect") {
         public void actionPerformed(ActionEvent e) {

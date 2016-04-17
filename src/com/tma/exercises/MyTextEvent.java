@@ -1,11 +1,12 @@
 package com.tma.exercises;
 
 import javax.swing.*;
+import java.io.Serializable;
 
 /**
  * @author Jesper Buus Nielsen
  */
-public abstract class MyTextEvent {
+public abstract class MyTextEvent implements Serializable {
     MyTextEvent(int offset) {
         this.offset = offset;
     }

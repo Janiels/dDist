@@ -2,6 +2,10 @@ package com.tma.exercises;
 
 import javax.swing.JTextArea;
 import java.awt.EventQueue;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
 
 /**
  * Takes the event recorded by the DocumentEventCapturer and replays
@@ -10,7 +14,7 @@ import java.awt.EventQueue;
  *
  * @author Jesper Buus Nielsen
  */
-public class EventReplayer implements Runnable {
+public class EventReplayer {
 
     private DocumentEventCapturer dec;
     private JTextArea area;
@@ -20,26 +24,42 @@ public class EventReplayer implements Runnable {
         this.area = area;
     }
 
-    public void run() {
-        boolean wasInterrupted = false;
-        while (!wasInterrupted) {
-            try {
-                Thread.sleep(1000);
-                final MyTextEvent mte = dec.take();
+    private void acceptFromPeer(Socket peer) {
+        try (ObjectInputStream in = new ObjectInputStream(peer.getInputStream())) {
+            while (true) {
+                MyTextEvent event = (MyTextEvent)in.readObject();
                 EventQueue.invokeLater(() -> {
                     try {
-                        mte.perform(area);
+                        event.perform(area);
                     } catch (Exception e) {
                         System.err.println(e);
                         // We catch all exceptions, as an uncaught exception would make the
                         // EDT unwind, which is not healthy.
                     }
                 });
-            } catch (Exception _) {
-                wasInterrupted = true;
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            try {
+                peer.close();
+            } catch (IOException eio) {
+                eio.printStackTrace();
             }
         }
-        System.out.println("I'm the thread running the EventReplayer, now I die!");
     }
 
+    private void sendToPeer(Socket peer) {
+        try (ObjectOutputStream out = new ObjectOutputStream(peer.getOutputStream())) {
+            while (true) {
+                MyTextEvent event = dec.take();
+                out.writeObject(event);
+            }
+        } catch (IOException | InterruptedException e) {
+            // Socket is closed by receiver
+        }
+    }
+
+    public void setPeer(Socket peer) {
+        new Thread(() -> acceptFromPeer(peer)).start();
+        new Thread(() -> sendToPeer(peer)).start();
+    }
 }
