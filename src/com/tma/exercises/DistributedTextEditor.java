@@ -28,12 +28,6 @@ public class DistributedTextEditor extends JFrame {
     private ServerSocket serverSocket;
 
     public DistributedTextEditor() {
-        try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (ClassNotFoundException | InstantiationException | UnsupportedLookAndFeelException | IllegalAccessException e) {
-            e.printStackTrace();
-        }
-
         area1.setFont(new Font("Monospaced", Font.PLAIN, 12));
 
         area2.setFont(new Font("Monospaced", Font.PLAIN, 12));
