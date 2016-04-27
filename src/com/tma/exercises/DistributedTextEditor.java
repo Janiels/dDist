@@ -24,11 +24,16 @@ public class DistributedTextEditor extends JFrame {
 
     private String currentFile = "Untitled";
     private boolean changed = false;
-    private boolean connected = false;
     private DocumentEventCapturer dec = new DocumentEventCapturer();
     private ServerSocket serverSocket;
 
     public DistributedTextEditor() {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (ClassNotFoundException | InstantiationException | UnsupportedLookAndFeelException | IllegalAccessException e) {
+            e.printStackTrace();
+        }
+
         area1.setFont(new Font("Monospaced", Font.PLAIN, 12));
 
         area2.setFont(new Font("Monospaced", Font.PLAIN, 12));
@@ -85,7 +90,7 @@ public class DistributedTextEditor extends JFrame {
                 "Try to type and delete stuff in the top area.\n" +
                 "Then figure out how it works.\n", 0);
 
-        er = new EventReplayer(dec, area2, this);
+        er = new EventReplayer(dec, area1, this);
     }
 
     private KeyListener k1 = new KeyAdapter() {

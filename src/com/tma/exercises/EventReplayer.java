@@ -33,12 +33,16 @@ public class EventReplayer {
             while (true) {
                 MyTextEvent event = (MyTextEvent) in.readObject();
                 EventQueue.invokeLater(() -> {
+                    dec.setEnabled(false);
                     try {
                         event.perform(area);
                     } catch (Exception e) {
                         System.err.println(e);
                         // We catch all exceptions, as an uncaught exception would make the
                         // EDT unwind, which is not healthy.
+                    }
+                    finally {
+                        dec.setEnabled(true);
                     }
                 });
             }

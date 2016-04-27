@@ -14,6 +14,7 @@ import javax.swing.text.DocumentFilter;
  * @author Jesper Buus Nielsen
  */
 public class DocumentEventCapturer extends DocumentFilter {
+    private boolean enabled = true;
 
     // We are using a blocking queue for two reasons:
     // 1) They are thread safe, i.e., we can have two threads add and take elements
@@ -23,6 +24,10 @@ public class DocumentEventCapturer extends DocumentFilter {
     //    empty, then take() will wait until new elements arrive, which is what
     //    we want, as we then don't need to keep asking until there are new elements.
     protected LinkedBlockingQueue<MyTextEvent> eventHistory = new LinkedBlockingQueue<MyTextEvent>();
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
 
     /**
      * If the queue is empty, then the call will block until an element arrives.
@@ -39,14 +44,14 @@ public class DocumentEventCapturer extends DocumentFilter {
             throws BadLocationException {
 
         // Queue a copy of the event and then modify the textarea
-        eventHistory.add(new TextInsertEvent(offset, str));
+        insertEvent(new TextInsertEvent(offset, str));
+
         super.insertString(fb, offset, str, a);
     }
 
     public void remove(FilterBypass fb, int offset, int length)
             throws BadLocationException {
-        // Queue a copy of the event and then modify the textarea
-        eventHistory.add(new TextRemoveEvent(offset, length));
+        insertEvent(new TextRemoveEvent(offset, length));
         super.remove(fb, offset, length);
     }
 
@@ -57,9 +62,16 @@ public class DocumentEventCapturer extends DocumentFilter {
 
         // Queue a copy of the event and then modify the text
         if (length > 0) {
-            eventHistory.add(new TextRemoveEvent(offset, length));
+            insertEvent(new TextRemoveEvent(offset, length));
         }
-        eventHistory.add(new TextInsertEvent(offset, str));
+        insertEvent(new TextInsertEvent(offset, str));
         super.replace(fb, offset, length, str, a);
+    }
+
+    private void insertEvent(MyTextEvent e) {
+        if (enabled) {
+            // Queue a copy of the event and then modify the textarea
+            eventHistory.add(e);
+        }
     }
 }
