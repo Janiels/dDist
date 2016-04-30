@@ -178,8 +178,6 @@ public class DistributedTextEditor extends JFrame {
                     if (server != null) {
                         setTitle("Connected to " + host);
 
-                        dec.setPerformingEvents(false);
-
                         changed = false;
                         Save.setEnabled(false);
                         SaveAs.setEnabled(false);
@@ -213,8 +211,6 @@ public class DistributedTextEditor extends JFrame {
         if (serverSocket == null) {
             setTitle("Disconnected");
         }
-
-        dec.setPerformingEvents(true);
     }
 
     Action Save = new AbstractAction("Save") {

@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.util.ArrayList;
 
 /**
  * Takes the event recorded by the DocumentEventCapturer and replays
@@ -22,6 +23,8 @@ public class EventReplayer {
     private Socket peer;
     private Thread send;
     private boolean isServer;
+    private int lastSequence;
+    private final ArrayList<MyTextEvent> events = new ArrayList<>();
 
     public EventReplayer(DocumentEventCapturer dec, JTextArea area, DistributedTextEditor editor) {
         this.dec = dec;
@@ -34,40 +37,28 @@ public class EventReplayer {
             while (true) {
                 MyTextEvent event = (MyTextEvent) in.readObject();
                 EventQueue.invokeLater(() -> {
-                    performEvent(event, true, false);
+                    dec.setEnabled(false);
+                    try {
+                        // If we're the server we must make sure we send this back
+                        // in the correct order.
 
-                    if (isServer) {
-                        try {
+                        if (isServer)
                             dec.put(event);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
+
+                        event.perform(area);
+                    } catch (Exception e) {
+                        System.err.println(e);
+                        // We catch all exceptions, as an uncaught exception would make the
+                        // EDT unwind, which is not healthy.
+                    }
+                    finally {
+                        dec.setEnabled(true);
                     }
                 });
 
             }
         } catch (IOException | ClassNotFoundException e) {
             disconnectPeer();
-        }
-    }
-
-    private void performEvent(MyTextEvent event, boolean perform, boolean capture) {
-        boolean oldPerform = dec.isPerformingEvents();
-        boolean oldCapture = dec.isCapturingEvents();
-
-        dec.setPerformingEvents(perform);
-        dec.setCapturingEvents(capture);
-
-        try {
-            event.perform(area);
-        } catch (Exception e) {
-            System.err.println(e);
-            // We catch all exceptions, as an uncaught exception would make the
-            // EDT unwind, which is not healthy.
-        }
-        finally {
-            dec.setPerformingEvents(oldPerform);
-            dec.setCapturingEvents(oldCapture);
         }
     }
 
@@ -85,7 +76,6 @@ public class EventReplayer {
     public void setPeer(Socket peer) {
         // Do not send old messages that weren't sent out already.
         dec.eventHistory.clear();
-        dec.setCapturingEvents(true);
         this.peer = peer;
         new Thread(() -> acceptFromPeer(peer)).start();
         send = new Thread(() -> sendToPeer(peer));
@@ -96,9 +86,6 @@ public class EventReplayer {
         if (peer == null) {
             return;
         }
-
-        EventQueue.invokeLater(() -> dec.setCapturingEvents(false));
-
         try {
             send.interrupt();
             editor.setDisconnected();
