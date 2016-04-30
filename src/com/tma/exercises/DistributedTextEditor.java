@@ -123,8 +123,6 @@ public class DistributedTextEditor extends JFrame {
                 return;
             }
 
-            er.setIsServer(true);
-
             new Thread(() -> {
                 while (true) {
                     Socket clientSocket;

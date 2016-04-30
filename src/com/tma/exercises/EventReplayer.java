@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.ArrayList;
 
 /**
  * Takes the event recorded by the DocumentEventCapturer and replays
@@ -22,9 +21,6 @@ public class EventReplayer {
     private JTextArea area;
     private Socket peer;
     private Thread send;
-    private boolean isServer;
-    private int lastSequence;
-    private final ArrayList<MyTextEvent> events = new ArrayList<>();
 
     public EventReplayer(DocumentEventCapturer dec, JTextArea area, DistributedTextEditor editor) {
         this.dec = dec;
@@ -39,12 +35,6 @@ public class EventReplayer {
                 EventQueue.invokeLater(() -> {
                     dec.setEnabled(false);
                     try {
-                        // If we're the server we must make sure we send this back
-                        // in the correct order.
-
-                        if (isServer)
-                            dec.put(event);
-
                         event.perform(area);
                     } catch (Exception e) {
                         System.err.println(e);
@@ -55,7 +45,6 @@ public class EventReplayer {
                         dec.setEnabled(true);
                     }
                 });
-
             }
         } catch (IOException | ClassNotFoundException e) {
             disconnectPeer();
@@ -93,9 +82,5 @@ public class EventReplayer {
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
-
-    public void setIsServer(boolean server) {
-        isServer = server;
     }
 }
