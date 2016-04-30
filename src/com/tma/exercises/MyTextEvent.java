@@ -7,11 +7,11 @@ import java.io.Serializable;
  * @author Jesper Buus Nielsen
  */
 public abstract class MyTextEvent implements Serializable {
+    private int offset;
+
     MyTextEvent(int offset) {
         this.offset = offset;
     }
-
-    private int offset;
 
     int getOffset() {
         return offset;

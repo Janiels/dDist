@@ -39,20 +39,29 @@ public class DocumentEventCapturer extends DocumentFilter {
         return eventHistory.take();
     }
 
+    void put(MyTextEvent event) throws InterruptedException {
+        eventHistory.put(event);
+    }
+
     public void insertString(FilterBypass fb, int offset,
                              String str, AttributeSet a)
             throws BadLocationException {
 
         // Queue a copy of the event and then modify the textarea
-        insertEvent(new TextInsertEvent(offset, str));
-
-        super.insertString(fb, offset, str, a);
+        if (enabled) {
+            // Queue a copy of the event and then modify the textarea
+            eventHistory.add(new TextInsertEvent(offset, str));
+        } else
+            super.insertString(fb, offset, str, a);
     }
 
     public void remove(FilterBypass fb, int offset, int length)
             throws BadLocationException {
-        insertEvent(new TextRemoveEvent(offset, length));
-        super.remove(fb, offset, length);
+        if (enabled) {
+            // Queue a copy of the event and then modify the textarea
+            eventHistory.add(new TextRemoveEvent(offset, length));
+        } else
+            super.remove(fb, offset, length);
     }
 
     public void replace(FilterBypass fb, int offset,
@@ -61,17 +70,15 @@ public class DocumentEventCapturer extends DocumentFilter {
             throws BadLocationException {
 
         // Queue a copy of the event and then modify the text
-        if (length > 0) {
-            insertEvent(new TextRemoveEvent(offset, length));
-        }
-        insertEvent(new TextInsertEvent(offset, str));
-        super.replace(fb, offset, length, str, a);
+        if (enabled) {
+            if (length > 0) {
+                // Queue a copy of the event and then modify the textarea
+                eventHistory.add(new TextRemoveEvent(offset, length));
+            }
+            // Queue a copy of the event and then modify the textarea
+            eventHistory.add(new TextInsertEvent(offset, str));
+        } else
+            super.replace(fb, offset, length, str, a);
     }
 
-    private void insertEvent(MyTextEvent e) {
-        if (enabled) {
-            // Queue a copy of the event and then modify the textarea
-            eventHistory.add(e);
-        }
-    }
 }
