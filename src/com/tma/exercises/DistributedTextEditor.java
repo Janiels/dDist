@@ -123,27 +123,30 @@ public class DistributedTextEditor extends JFrame {
                 return;
             }
 
+            dec.setServer(true);
+
             new Thread(() -> {
                 while (true) {
                     Socket clientSocket;
                     try {
                         clientSocket = serverSocket.accept();
-                        EventQueue.invokeLater(()->{
-                            // If we have a client already, throw him off as we're accepting
-                            // a new one.
-                            er.disconnectPeer();
-
-                            // Clear old text in case we had previous clients that filled
-                            // them up.
-                            area1.setText("");
-                            area2.setText("");
-
-                            er.setPeer(clientSocket);
-                        });
                     } catch (IOException ex) {
                         ex.printStackTrace();
                         break;
                     }
+
+                    EventQueue.invokeLater(()->{
+                        // If we have a client already, throw him off as we're accepting
+                        // a new one.
+                        er.disconnectPeer();
+
+                        // Clear old text in case we had previous clients that filled
+                        // them up.
+                        area1.setText("");
+                        area2.setText("");
+
+                        er.setPeer(clientSocket);
+                    });
                 }
             }).start();
 
@@ -206,9 +209,18 @@ public class DistributedTextEditor extends JFrame {
     };
 
     public void setDisconnected() {
-        if (serverSocket == null) {
-            setTitle("Disconnected");
+        if (serverSocket != null) {
+            try {
+                serverSocket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            serverSocket = null;
+            dec.setServer(false);
         }
+
+        setTitle("Disconnected");
     }
 
     Action Save = new AbstractAction("Save") {

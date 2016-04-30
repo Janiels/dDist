@@ -22,5 +22,13 @@ public class TextInsertEvent extends MyTextEvent {
     void perform(JTextArea area) {
         area.insert(getText(), getOffset());
     }
+
+    @Override
+    public void fixUnseenEvent(MyTextEvent event) {
+        if (getOffset() < event.getOffset())
+            event.setOffset(event.getOffset() + getText().length());
+    }
+
+
 }
 

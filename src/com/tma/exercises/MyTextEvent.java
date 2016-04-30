@@ -12,10 +12,25 @@ public abstract class MyTextEvent implements Serializable {
     }
 
     private int offset;
+    private int sequence;
 
     int getOffset() {
         return offset;
     }
 
+    public void setOffset(int offset) {
+        this.offset = offset;
+    }
+
+    public int getSequence() {
+        return sequence;
+    }
+
+    public void setSequence(int sequence) {
+        this.sequence = sequence;
+    }
+
     abstract void perform(JTextArea area);
+
+    public abstract void fixUnseenEvent(MyTextEvent event);
 }

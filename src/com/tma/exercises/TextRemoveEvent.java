@@ -19,4 +19,10 @@ public class TextRemoveEvent extends MyTextEvent {
     void perform(JTextArea area) {
         area.replaceRange(null, getOffset(), getOffset() + getLength());
     }
+
+    @Override
+    public void fixUnseenEvent(MyTextEvent event) {
+        if (getOffset() < event.getOffset())
+            event.setOffset(event.getOffset() - getLength());
+    }
 }

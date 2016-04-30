@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.util.ArrayList;
 
 /**
  * Takes the event recorded by the DocumentEventCapturer and replays
@@ -21,6 +22,7 @@ public class EventReplayer {
     private JTextArea area;
     private Socket peer;
     private Thread send;
+    private final ArrayList<MyTextEvent> events = new ArrayList<>();
 
     public EventReplayer(DocumentEventCapturer dec, JTextArea area, DistributedTextEditor editor) {
         this.dec = dec;
@@ -35,6 +37,13 @@ public class EventReplayer {
                 EventQueue.invokeLater(() -> {
                     dec.setEnabled(false);
                     try {
+                        // If we're a client then save the last event's sequence number
+                        // we have seen.
+                        if (!dec.isServer()) {
+                            dec.setSequence(event.getSequence());
+                            fixEvent(event);
+                        }
+
                         event.perform(area);
                     } catch (Exception e) {
                         System.err.println(e);
@@ -48,6 +57,18 @@ public class EventReplayer {
             }
         } catch (IOException | ClassNotFoundException e) {
             disconnectPeer();
+        }
+    }
+
+    // Fix an event if the client had a different picture of the text view
+    // when it made the event, than the one the server has right now.
+    private void fixEvent(MyTextEvent event) {
+        int clientSeenSequence = event.getSequence();
+        ArrayList<MyTextEvent> events = dec.getCurrentlyAppliedEventsAfter(clientSeenSequence);
+        dec.deleteEventsBefore(clientSeenSequence);
+
+        for (MyTextEvent appliedEvent : events) {
+            appliedEvent.fixUnseenEvent(event);
         }
     }
 

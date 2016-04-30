@@ -1,5 +1,6 @@
 package com.tma.exercises;
 
+import java.util.ArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
@@ -15,6 +16,9 @@ import javax.swing.text.DocumentFilter;
  */
 public class DocumentEventCapturer extends DocumentFilter {
     private boolean enabled = true;
+    private int sequence;
+    private boolean isServer;
+    private final ArrayList<MyTextEvent> events = new ArrayList<>();
 
     // We are using a blocking queue for two reasons:
     // 1) They are thread safe, i.e., we can have two threads add and take elements
@@ -27,6 +31,23 @@ public class DocumentEventCapturer extends DocumentFilter {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public int getSequence() {
+        return sequence;
+    }
+
+    public void setSequence(int sequence) {
+        assert !isServer;
+        this.sequence = sequence;
+    }
+
+    public boolean isServer() {
+        return isServer;
+    }
+
+    public void setServer(boolean server) {
+        isServer = server;
     }
 
     /**
@@ -69,9 +90,29 @@ public class DocumentEventCapturer extends DocumentFilter {
     }
 
     private void insertEvent(MyTextEvent e) {
+        if (isServer)
+            sequence++;
+
         if (enabled) {
+            e.setSequence(sequence);
             // Queue a copy of the event and then modify the textarea
             eventHistory.add(e);
+            events.add(e);
         }
+    }
+
+    ArrayList<MyTextEvent> getCurrentlyAppliedEventsAfter(int sequence) {
+        ArrayList<MyTextEvent> after = new ArrayList<>();
+
+        for (MyTextEvent event : events) {
+            if (event.getSequence() > sequence)
+                after.add(event);
+        }
+
+        return after;
+    }
+
+    void deleteEventsBefore(int sequence) {
+        events.removeIf(e -> e.getSequence() <= sequence);
     }
 }
