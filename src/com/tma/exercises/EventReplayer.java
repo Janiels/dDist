@@ -39,18 +39,17 @@ public class EventReplayer {
                     try {
                         // If we're a client then save the last event's sequence number
                         // we have seen.
-                        if (!dec.isServer()) {
+                        if (!dec.isServer())
                             dec.setSequence(event.getSequence());
+                        else
                             fixEvent(event);
-                        }
 
                         event.perform(area);
                     } catch (Exception e) {
                         System.err.println(e);
                         // We catch all exceptions, as an uncaught exception would make the
                         // EDT unwind, which is not healthy.
-                    }
-                    finally {
+                    } finally {
                         dec.setEnabled(true);
                     }
                 });
