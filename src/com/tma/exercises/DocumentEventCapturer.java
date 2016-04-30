@@ -14,7 +14,8 @@ import javax.swing.text.DocumentFilter;
  * @author Jesper Buus Nielsen
  */
 public class DocumentEventCapturer extends DocumentFilter {
-    private boolean enabled = true;
+    private boolean capturingEvents = false;
+    private boolean performingEvents = true;
 
     // We are using a blocking queue for two reasons:
     // 1) They are thread safe, i.e., we can have two threads add and take elements
@@ -25,8 +26,20 @@ public class DocumentEventCapturer extends DocumentFilter {
     //    we want, as we then don't need to keep asking until there are new elements.
     protected LinkedBlockingQueue<MyTextEvent> eventHistory = new LinkedBlockingQueue<MyTextEvent>();
 
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
+    public boolean isCapturingEvents() {
+        return capturingEvents;
+    }
+
+    public boolean isPerformingEvents() {
+        return performingEvents;
+    }
+
+    public void setCapturingEvents(boolean enabled) {
+        this.capturingEvents = enabled;
+    }
+
+    public void setPerformingEvents(boolean performingEvents) {
+        this.performingEvents = performingEvents;
     }
 
     /**
@@ -47,20 +60,23 @@ public class DocumentEventCapturer extends DocumentFilter {
                              String str, AttributeSet a)
             throws BadLocationException {
 
-        // Queue a copy of the event and then modify the textarea
-        if (enabled) {
+        if (capturingEvents) {
             // Queue a copy of the event and then modify the textarea
             eventHistory.add(new TextInsertEvent(offset, str));
-        } else
+        }
+
+        if (performingEvents)
             super.insertString(fb, offset, str, a);
     }
 
     public void remove(FilterBypass fb, int offset, int length)
             throws BadLocationException {
-        if (enabled) {
+        if (capturingEvents) {
             // Queue a copy of the event and then modify the textarea
             eventHistory.add(new TextRemoveEvent(offset, length));
-        } else
+        }
+
+        if (performingEvents)
             super.remove(fb, offset, length);
     }
 
@@ -70,15 +86,16 @@ public class DocumentEventCapturer extends DocumentFilter {
             throws BadLocationException {
 
         // Queue a copy of the event and then modify the text
-        if (enabled) {
+        if (capturingEvents) {
             if (length > 0) {
                 // Queue a copy of the event and then modify the textarea
                 eventHistory.add(new TextRemoveEvent(offset, length));
             }
             // Queue a copy of the event and then modify the textarea
             eventHistory.add(new TextInsertEvent(offset, str));
-        } else
+        }
+
+        if (performingEvents)
             super.replace(fb, offset, length, str, a);
     }
-
 }
