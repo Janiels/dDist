@@ -73,6 +73,12 @@ public class EventReplayer {
                 return -1;
             if(o2.happenedBefore(o1))
                 return 1;
+
+            if (o1 instanceof TextRemoveEvent && !(o2 instanceof TextRemoveEvent))
+                return 1;
+            if (o2 instanceof TextRemoveEvent && !(o1 instanceof TextRemoveEvent))
+                return -1;
+
             if(o1.isFromServer() && !o2.isFromServer())
                 return -1;
             if(o2.isFromServer() && !o1.isFromServer())

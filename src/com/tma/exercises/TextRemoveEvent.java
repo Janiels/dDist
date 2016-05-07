@@ -5,11 +5,12 @@ import javax.swing.*;
 public class TextRemoveEvent extends MyTextEvent {
 
     private int length;
-    private transient String removed;
+    private String removed;
 
-    public TextRemoveEvent(int offset, int length) {
+    public TextRemoveEvent(int offset, int length, String text) {
         super(offset);
         this.length = length;
+        removed = text;
     }
 
     public int getLength() {
@@ -18,7 +19,6 @@ public class TextRemoveEvent extends MyTextEvent {
 
     @Override
     void perform(JTextArea area) {
-        removed = area.getText().substring(getOffset(), getOffset() + getLength());
         area.replaceRange(null, getOffset(), getOffset() + getLength());
     }
 

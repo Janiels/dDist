@@ -59,8 +59,9 @@ public class DocumentEventCapturer extends DocumentFilter {
 
     public void remove(FilterBypass fb, int offset, int length)
             throws BadLocationException {
+        String text = fb.getDocument().getText(offset, length);
         super.remove(fb, offset, length);
-        insertEvent(new TextRemoveEvent(offset, length));
+        insertEvent(new TextRemoveEvent(offset, length, text));
     }
 
     public void replace(FilterBypass fb, int offset,
@@ -68,10 +69,11 @@ public class DocumentEventCapturer extends DocumentFilter {
                         String str, AttributeSet a)
             throws BadLocationException {
 
+        String text = fb.getDocument().getText(offset, length);
         super.replace(fb, offset, length, str, a);
         // Queue a copy of the event and then modify the text
         if (length > 0) {
-            insertEvent(new TextRemoveEvent(offset, length));
+            insertEvent(new TextRemoveEvent(offset, length, text));
         }
         insertEvent(new TextInsertEvent(offset, str));
     }
