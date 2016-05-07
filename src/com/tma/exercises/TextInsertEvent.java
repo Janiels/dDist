@@ -36,7 +36,7 @@ public class TextInsertEvent extends MyTextEvent {
 
     @Override
     public String toString() {
-        return String.format("Insert '%s' at %d (seq %d, last seen %d)", text, getOffset(), getSequence(), getPeerSequence());
+        return String.format("Insert '%s' at %d (clock[0] %d, clock[1] %d)", text, getOffset(), getClocks()[0], getClocks()[1]);
     }
 }
 

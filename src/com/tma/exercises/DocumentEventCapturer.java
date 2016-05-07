@@ -27,6 +27,7 @@ public class DocumentEventCapturer extends DocumentFilter {
     //    empty, then take() will wait until new elements arrive, which is what
     //    we want, as we then don't need to keep asking until there are new elements.
     protected LinkedBlockingQueue<MyTextEvent> eventHistory = new LinkedBlockingQueue<MyTextEvent>();
+    private boolean isServer;
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
@@ -77,6 +78,7 @@ public class DocumentEventCapturer extends DocumentFilter {
 
     private void insertEvent(MyTextEvent e) {
         if (enabled) {
+            e.setFromServer(isServer);
             incrementSequence();
             e.setClocks(clocks);
             // Queue a copy of the event and then modify the textarea
@@ -85,23 +87,44 @@ public class DocumentEventCapturer extends DocumentFilter {
         }
     }
 
-    ArrayList<MyTextEvent> getCurrentlyAppliedEventsAfter(int sequence) {
+    ArrayList<MyTextEvent> getCurrentlyAppliedEventsAfter(MyTextEvent other) {
         ArrayList<MyTextEvent> after = new ArrayList<>();
 
         for (MyTextEvent event : events) {
-            if (event.getSequence() > sequence)
+            if (!event.happenedBefore(other))
                 after.add(event);
         }
 
         return after;
     }
 
-    void deleteEventsBefore(int sequence) {
-        events.removeIf(e -> e.getSequence() <= sequence);
+    void deleteEventsBefore( MyTextEvent other) {
+        events.removeIf(e -> e.happenedBefore(other));
     }
 
     public void clear() {
+        clocks[0] = 0;
+        clocks[1] = 0;
         eventHistory.clear();
         events.clear();
+    }
+
+    public void clocksReceived(int[] clocks) {
+        this.clocks[0] = Math.max(clocks[0], this.clocks[0]);
+        this.clocks[1] = Math.max(clocks[1], this.clocks[1]);
+        incrementSequence();
+    }
+
+    public void insertRemoteEvent(MyTextEvent event) {
+        events.add(event);
+    }
+
+
+    public void setIsServer(boolean isServer) {
+        this.isServer = isServer;
+    }
+
+    public boolean isServer() {
+        return isServer;
     }
 }

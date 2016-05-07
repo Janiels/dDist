@@ -123,7 +123,7 @@ public class DistributedTextEditor extends JFrame {
                 return;
             }
 
-            dec.setSequence(0);
+            dec.setIsServer(true);
 
             System.out.println("I am the server!");
             new Thread(() -> {
@@ -171,8 +171,8 @@ public class DistributedTextEditor extends JFrame {
 
             String host = ipaddress.getText() + ":" + port;
             setTitle("Connecting to " + host + "...");
-            dec.setSequence(1);
 
+            dec.setIsServer(false);
             System.out.println("I am a client!");
 
             new Thread(() ->

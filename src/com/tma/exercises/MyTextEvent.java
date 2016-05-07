@@ -13,6 +13,7 @@ public abstract class MyTextEvent implements Serializable {
 
     private int offset;
     private int[] clocks;
+    private boolean fromServer;
 
     int getOffset() {
         return offset;
@@ -30,8 +31,27 @@ public abstract class MyTextEvent implements Serializable {
         this.clocks = clocks;
     }
 
+    public boolean happenedBefore(MyTextEvent other) {
+        if (this.clocks[0] > other.clocks[0])
+            return false;
+        if (this.clocks[1] > other.clocks[1])
+            return false;
+
+        return this.clocks[0] < other.clocks[0] || this.clocks[1] < other.clocks[1];
+    }
+
+    public boolean isFromServer() {
+        return fromServer;
+    }
+
+    public void setFromServer(boolean fromServer) {
+        this.fromServer = fromServer;
+    }
+
     abstract void perform(JTextArea area);
+
     abstract void undo(JTextArea area);
+
 
     public abstract void fixUnseenEvent(MyTextEvent event);
 }

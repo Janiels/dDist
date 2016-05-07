@@ -49,9 +49,14 @@ public class EventReplayer {
                         dec.setEnabled(true);
                     }
 
-                    dec.setPeerSequence(event.getSequence());
-                    if (dec.getSequence() < event.getSequence())
-                        dec.setSequence(event.getSequence() + 1);
+                    int[] clocks = event.getClocks();
+                    int temp = clocks[0];
+                    clocks[0] = clocks[1];
+                    clocks[1] = temp;
+
+                    dec.clocksReceived(clocks);
+
+
                 });
             }
         } catch (IOException | ClassNotFoundException e) {
@@ -60,7 +65,9 @@ public class EventReplayer {
     }
 
     private void performEvent(MyTextEvent event) {
-        ArrayList<MyTextEvent> events = dec.getCurrentlyAppliedEventsAfter(event.getSequence());
+        ArrayList<MyTextEvent> events = dec.getCurrentlyAppliedEventsAfter(event);
+        dec.insertRemoteEvent(event);
+
 
         Collections.reverse(events);
         for (MyTextEvent appliedEvent : events) {
@@ -68,12 +75,24 @@ public class EventReplayer {
             appliedEvent.undo(area);
         }
 
-        event.perform(area);
+        events.add(event);
+        Collections.sort(events, (o1, o2) -> {
+            if(o1.happenedBefore(o2))
+                return -1;
+            if(o2.happenedBefore(o1))
+                return 1;
+            if(o1.isFromServer() && !o2.isFromServer())
+                return -1;
+            if(o2.isFromServer() && !o1.isFromServer())
+                return 1;
+            return 0;
+        });
 
-        Collections.reverse(events);
+
         for (MyTextEvent appliedEvent : events) {
             System.out.println("Reapplying: " + appliedEvent);
             appliedEvent.perform(area);
+            dec.insertRemoteEvent(appliedEvent);
         }
     }
 

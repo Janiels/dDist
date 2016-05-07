@@ -35,6 +35,6 @@ public class TextRemoveEvent extends MyTextEvent {
 
     @Override
     public String toString() {
-        return String.format("Removing %d bytes at %d (sequence %d, last seen %d)", getLength(), getOffset(), getSequence(), getPeerSequence());
+        return String.format("Removing %d bytes at %d (clock[0] %d, clock[1] %d)", getLength(), getOffset(), getClocks()[0], getClocks()[1]);
     }
 }
