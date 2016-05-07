@@ -12,8 +12,7 @@ public abstract class MyTextEvent implements Serializable {
     }
 
     private int offset;
-    private int sequence;
-    private int peerSequence;
+    private int[] clocks;
 
     int getOffset() {
         return offset;
@@ -23,20 +22,12 @@ public abstract class MyTextEvent implements Serializable {
         this.offset = offset;
     }
 
-    public int getSequence() {
-        return sequence;
+    public int[] getClocks() {
+        return clocks;
     }
 
-    public void setSequence(int sequence) {
-        this.sequence = sequence;
-    }
-
-    public int getPeerSequence() {
-        return peerSequence;
-    }
-
-    public void setPeerSequence(int peerSequence) {
-        this.peerSequence = peerSequence;
+    public void setClocks(int[] clocks) {
+        this.clocks = clocks;
     }
 
     abstract void perform(JTextArea area);

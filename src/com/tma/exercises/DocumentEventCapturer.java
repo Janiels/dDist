@@ -16,8 +16,7 @@ import javax.swing.text.DocumentFilter;
  */
 public class DocumentEventCapturer extends DocumentFilter {
     private boolean enabled = true;
-    private int sequence;
-    private int peerSequence;
+    private int[] clocks = new int[2];
     private final ArrayList<MyTextEvent> events = new ArrayList<>();
 
     // We are using a blocking queue for two reasons:
@@ -33,16 +32,8 @@ public class DocumentEventCapturer extends DocumentFilter {
         this.enabled = enabled;
     }
 
-    public void setPeerSequence(int peerSequence) {
-        this.peerSequence = peerSequence;
-    }
-
-    public int getSequence() {
-        return sequence;
-    }
-
-    public void setSequence(int sequence) {
-        this.sequence = sequence;
+    public void incrementSequence() {
+        clocks[0]++;
     }
 
     /**
@@ -85,11 +76,9 @@ public class DocumentEventCapturer extends DocumentFilter {
     }
 
     private void insertEvent(MyTextEvent e) {
-        sequence += 2;
-
         if (enabled) {
-            e.setSequence(sequence);
-            e.setPeerSequence(peerSequence);
+            incrementSequence();
+            e.setClocks(clocks);
             // Queue a copy of the event and then modify the textarea
             eventHistory.add(e);
             events.add(e);
