@@ -50,7 +50,8 @@ public class EventReplayer {
                     }
 
                     dec.setPeerSequence(event.getSequence());
-                    dec.setSequence(event.getSequence() + 1);
+                    if (dec.getSequence() < event.getSequence())
+                        dec.setSequence(event.getSequence() + 1);
                 });
             }
         } catch (IOException | ClassNotFoundException e) {

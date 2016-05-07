@@ -37,6 +37,10 @@ public class DocumentEventCapturer extends DocumentFilter {
         this.peerSequence = peerSequence;
     }
 
+    public int getSequence() {
+        return sequence;
+    }
+
     public void setSequence(int sequence) {
         this.sequence = sequence;
     }
