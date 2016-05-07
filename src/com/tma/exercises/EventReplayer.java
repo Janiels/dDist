@@ -7,6 +7,9 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Collections;
+
+import static java.util.Collections.reverse;
 
 /**
  * Takes the event recorded by the DocumentEventCapturer and replays
@@ -22,7 +25,6 @@ public class EventReplayer {
     private JTextArea area;
     private Socket peer;
     private Thread send;
-    private final ArrayList<MyTextEvent> events = new ArrayList<>();
 
     public EventReplayer(DocumentEventCapturer dec, JTextArea area, DistributedTextEditor editor) {
         this.dec = dec;
@@ -34,17 +36,11 @@ public class EventReplayer {
         try (ObjectInputStream in = new ObjectInputStream(peer.getInputStream())) {
             while (true) {
                 MyTextEvent event = (MyTextEvent) in.readObject();
+                System.out.println("Received: " + event);
                 EventQueue.invokeLater(() -> {
                     dec.setEnabled(false);
                     try {
-                        // If we're a client then save the last event's sequence number
-                        // we have seen.
-                        if (!dec.isServer())
-                            dec.setSequence(event.getSequence());
-                        else
-                            fixEvent(event);
-
-                        event.perform(area);
+                        performEvent(event);
                     } catch (Exception e) {
                         System.err.println(e);
                         // We catch all exceptions, as an uncaught exception would make the
@@ -52,6 +48,9 @@ public class EventReplayer {
                     } finally {
                         dec.setEnabled(true);
                     }
+
+                    dec.setPeerSequence(event.getSequence());
+                    dec.setSequence(event.getSequence() + 1);
                 });
             }
         } catch (IOException | ClassNotFoundException e) {
@@ -59,15 +58,21 @@ public class EventReplayer {
         }
     }
 
-    // Fix an event if the client had a different picture of the text view
-    // when it made the event, than the one the server has right now.
-    private void fixEvent(MyTextEvent event) {
-        int clientSeenSequence = event.getSequence();
-        ArrayList<MyTextEvent> events = dec.getCurrentlyAppliedEventsAfter(clientSeenSequence);
-        dec.deleteEventsBefore(clientSeenSequence);
+    private void performEvent(MyTextEvent event) {
+        ArrayList<MyTextEvent> events = dec.getCurrentlyAppliedEventsAfter(event.getSequence());
 
+        Collections.reverse(events);
         for (MyTextEvent appliedEvent : events) {
-            appliedEvent.fixUnseenEvent(event);
+            System.out.println("Undoing: " + appliedEvent);
+            appliedEvent.undo(area);
+        }
+
+        event.perform(area);
+
+        Collections.reverse(events);
+        for (MyTextEvent appliedEvent : events) {
+            System.out.println("Reapplying: " + appliedEvent);
+            appliedEvent.perform(area);
         }
     }
 
@@ -75,6 +80,7 @@ public class EventReplayer {
         try (ObjectOutputStream out = new ObjectOutputStream(peer.getOutputStream())) {
             while (true) {
                 MyTextEvent event = dec.take();
+                System.out.println("Sending: " + event);
                 out.writeObject(event);
             }
         } catch (IOException | InterruptedException e) {
@@ -84,7 +90,7 @@ public class EventReplayer {
 
     public void setPeer(Socket peer) {
         // Do not send old messages that weren't sent out already.
-        dec.eventHistory.clear();
+        dec.clear();
         this.peer = peer;
         new Thread(() -> acceptFromPeer(peer)).start();
         send = new Thread(() -> sendToPeer(peer));

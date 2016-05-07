@@ -24,11 +24,19 @@ public class TextInsertEvent extends MyTextEvent {
     }
 
     @Override
+    void undo(JTextArea area) {
+        area.replaceRange(null, getOffset(), getOffset() + getText().length());
+    }
+
+    @Override
     public void fixUnseenEvent(MyTextEvent event) {
-        if (getOffset() < event.getOffset())
+        if (getOffset() <= event.getOffset())
             event.setOffset(event.getOffset() + getText().length());
     }
 
-
+    @Override
+    public String toString() {
+        return String.format("Insert '%s' at %d (seq %d, last seen %d)", text, getOffset(), getSequence(), getPeerSequence());
+    }
 }
 

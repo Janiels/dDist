@@ -5,6 +5,7 @@ import javax.swing.*;
 public class TextRemoveEvent extends MyTextEvent {
 
     private int length;
+    private transient String removed;
 
     public TextRemoveEvent(int offset, int length) {
         super(offset);
@@ -17,12 +18,23 @@ public class TextRemoveEvent extends MyTextEvent {
 
     @Override
     void perform(JTextArea area) {
+        removed = area.getText().substring(getOffset(), getOffset() + getLength());
         area.replaceRange(null, getOffset(), getOffset() + getLength());
+    }
+
+    @Override
+    void undo(JTextArea area) {
+        area.insert(removed, getOffset());
     }
 
     @Override
     public void fixUnseenEvent(MyTextEvent event) {
         if (getOffset() < event.getOffset())
             event.setOffset(event.getOffset() - getLength());
+    }
+
+    @Override
+    public String toString() {
+        return String.format("Removing %d bytes at %d (sequence %d, last seen %d)", getLength(), getOffset(), getSequence(), getPeerSequence());
     }
 }

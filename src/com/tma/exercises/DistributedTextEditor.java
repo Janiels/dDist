@@ -14,8 +14,8 @@ public class DistributedTextEditor extends JFrame {
 
     private JTextArea area1 = new JTextArea(20, 120);
     private JTextArea area2 = new JTextArea(20, 120);
-    private JTextField ipaddress = new JTextField("IP address here");
-    private JTextField portNumber = new JTextField("Port number here");
+    private JTextField ipaddress = new JTextField("192.168.87.101");
+    private JTextField portNumber = new JTextField("40615");
 
     private EventReplayer er;
 
@@ -123,8 +123,9 @@ public class DistributedTextEditor extends JFrame {
                 return;
             }
 
-            dec.setServer(true);
+            dec.setSequence(0);
 
+            System.out.println("I am the server!");
             new Thread(() -> {
                 while (true) {
                     Socket clientSocket;
@@ -170,6 +171,9 @@ public class DistributedTextEditor extends JFrame {
 
             String host = ipaddress.getText() + ":" + port;
             setTitle("Connecting to " + host + "...");
+            dec.setSequence(1);
+
+            System.out.println("I am a client!");
 
             new Thread(() ->
             {
@@ -217,7 +221,6 @@ public class DistributedTextEditor extends JFrame {
             }
 
             serverSocket = null;
-            dec.setServer(false);
         }
 
         setTitle("Disconnected");

@@ -13,6 +13,7 @@ public abstract class MyTextEvent implements Serializable {
 
     private int offset;
     private int sequence;
+    private int peerSequence;
 
     int getOffset() {
         return offset;
@@ -30,7 +31,16 @@ public abstract class MyTextEvent implements Serializable {
         this.sequence = sequence;
     }
 
+    public int getPeerSequence() {
+        return peerSequence;
+    }
+
+    public void setPeerSequence(int peerSequence) {
+        this.peerSequence = peerSequence;
+    }
+
     abstract void perform(JTextArea area);
+    abstract void undo(JTextArea area);
 
     public abstract void fixUnseenEvent(MyTextEvent event);
 }

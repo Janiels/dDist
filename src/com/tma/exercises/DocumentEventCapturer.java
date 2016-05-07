@@ -17,7 +17,7 @@ import javax.swing.text.DocumentFilter;
 public class DocumentEventCapturer extends DocumentFilter {
     private boolean enabled = true;
     private int sequence;
-    private boolean isServer;
+    private int peerSequence;
     private final ArrayList<MyTextEvent> events = new ArrayList<>();
 
     // We are using a blocking queue for two reasons:
@@ -33,21 +33,12 @@ public class DocumentEventCapturer extends DocumentFilter {
         this.enabled = enabled;
     }
 
-    public int getSequence() {
-        return sequence;
+    public void setPeerSequence(int peerSequence) {
+        this.peerSequence = peerSequence;
     }
 
     public void setSequence(int sequence) {
-        assert !isServer;
         this.sequence = sequence;
-    }
-
-    public boolean isServer() {
-        return isServer;
-    }
-
-    public void setServer(boolean server) {
-        isServer = server;
     }
 
     /**
@@ -90,11 +81,11 @@ public class DocumentEventCapturer extends DocumentFilter {
     }
 
     private void insertEvent(MyTextEvent e) {
-        if (isServer)
-            sequence++;
+        sequence += 2;
 
         if (enabled) {
             e.setSequence(sequence);
+            e.setPeerSequence(peerSequence);
             // Queue a copy of the event and then modify the textarea
             eventHistory.add(e);
             events.add(e);
@@ -114,5 +105,10 @@ public class DocumentEventCapturer extends DocumentFilter {
 
     void deleteEventsBefore(int sequence) {
         events.removeIf(e -> e.getSequence() <= sequence);
+    }
+
+    public void clear() {
+        eventHistory.clear();
+        events.clear();
     }
 }
