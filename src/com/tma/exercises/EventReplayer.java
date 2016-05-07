@@ -9,8 +9,6 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Collections;
 
-import static java.util.Collections.reverse;
-
 /**
  * Takes the event recorded by the DocumentEventCapturer and replays
  * them in a JTextArea. The delay of 1 sec is only to make the individual
@@ -62,11 +60,8 @@ public class EventReplayer {
     }
 
     private void performEvent(MyTextEvent event) {
-        ArrayList<MyTextEvent> events = dec.getCurrentlyAppliedEventsAfter(event);
-        dec.insertRemoteEvent(event);
+        ArrayList<MyTextEvent> events = dec.popEventsAfter(event);
 
-
-        Collections.reverse(events);
         for (MyTextEvent appliedEvent : events) {
             System.out.println("Undoing: " + appliedEvent);
             appliedEvent.undo(area);
@@ -89,7 +84,7 @@ public class EventReplayer {
         for (MyTextEvent appliedEvent : events) {
             System.out.println("Reapplying: " + appliedEvent);
             appliedEvent.perform(area);
-            dec.insertRemoteEvent(appliedEvent);
+            dec.insertAppliedEvent(appliedEvent);
         }
     }
 

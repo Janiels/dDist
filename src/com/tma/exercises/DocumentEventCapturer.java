@@ -59,8 +59,8 @@ public class DocumentEventCapturer extends DocumentFilter {
 
     public void remove(FilterBypass fb, int offset, int length)
             throws BadLocationException {
-        insertEvent(new TextRemoveEvent(offset, length));
         super.remove(fb, offset, length);
+        insertEvent(new TextRemoveEvent(offset, length));
     }
 
     public void replace(FilterBypass fb, int offset,
@@ -68,12 +68,12 @@ public class DocumentEventCapturer extends DocumentFilter {
                         String str, AttributeSet a)
             throws BadLocationException {
 
+        super.replace(fb, offset, length, str, a);
         // Queue a copy of the event and then modify the text
         if (length > 0) {
             insertEvent(new TextRemoveEvent(offset, length));
         }
         insertEvent(new TextInsertEvent(offset, str));
-        super.replace(fb, offset, length, str, a);
     }
 
     private void insertEvent(MyTextEvent e) {
@@ -87,18 +87,30 @@ public class DocumentEventCapturer extends DocumentFilter {
         }
     }
 
-    ArrayList<MyTextEvent> getCurrentlyAppliedEventsAfter(MyTextEvent other) {
+    ArrayList<MyTextEvent> popEventsAfter(MyTextEvent other) {
         ArrayList<MyTextEvent> after = new ArrayList<>();
 
-        for (MyTextEvent event : events) {
-            if (!event.happenedBefore(other))
-                after.add(event);
+        // Find first event that happened concurrently with 'other'
+        // or after 'other'
+        int first;
+        for (first = 0; first < events.size(); first++) {
+            if (!events.get(first).happenedBefore(other))
+                break;
+        }
+
+        if (first == events.size())
+            return after;
+
+        for (int i = events.size() - 1; i >= first; i--) {
+            MyTextEvent event = events.get(i);
+            after.add(event);
+            events.remove(i);
         }
 
         return after;
     }
 
-    void deleteEventsBefore( MyTextEvent other) {
+    void deleteEventsBefore(MyTextEvent other) {
         events.removeIf(e -> e.happenedBefore(other));
     }
 
@@ -115,7 +127,7 @@ public class DocumentEventCapturer extends DocumentFilter {
         incrementSequence();
     }
 
-    public void insertRemoteEvent(MyTextEvent event) {
+    public void insertAppliedEvent(MyTextEvent event) {
         events.add(event);
     }
 

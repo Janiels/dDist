@@ -51,7 +51,4 @@ public abstract class MyTextEvent implements Serializable {
     abstract void perform(JTextArea area);
 
     abstract void undo(JTextArea area);
-
-
-    public abstract void fixUnseenEvent(MyTextEvent event);
 }
