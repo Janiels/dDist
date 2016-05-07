@@ -80,7 +80,7 @@ public class DocumentEventCapturer extends DocumentFilter {
         if (enabled) {
             e.setFromServer(isServer);
             incrementSequence();
-            e.setClocks(clocks);
+            e.setClocks(clocks.clone());
             // Queue a copy of the event and then modify the textarea
             eventHistory.add(e);
             events.add(e);

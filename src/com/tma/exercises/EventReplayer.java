@@ -36,9 +36,15 @@ public class EventReplayer {
         try (ObjectInputStream in = new ObjectInputStream(peer.getInputStream())) {
             while (true) {
                 MyTextEvent event = (MyTextEvent) in.readObject();
+                int[] clocks = event.getClocks();
+                int temp = clocks[0];
+                clocks[0] = clocks[1];
+                clocks[1] = temp;
+
                 System.out.println("Received: " + event);
                 EventQueue.invokeLater(() -> {
                     dec.setEnabled(false);
+                    dec.clocksReceived(clocks);
                     try {
                         performEvent(event);
                     } catch (Exception e) {
@@ -48,15 +54,6 @@ public class EventReplayer {
                     } finally {
                         dec.setEnabled(true);
                     }
-
-                    int[] clocks = event.getClocks();
-                    int temp = clocks[0];
-                    clocks[0] = clocks[1];
-                    clocks[1] = temp;
-
-                    dec.clocksReceived(clocks);
-
-
                 });
             }
         } catch (IOException | ClassNotFoundException e) {
