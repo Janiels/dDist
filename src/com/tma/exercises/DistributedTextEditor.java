@@ -207,21 +207,24 @@ public class DistributedTextEditor extends JFrame {
 
     Action Disconnect = new AbstractAction("Disconnect") {
         public void actionPerformed(ActionEvent e) {
+            if (serverSocket != null) {
+                try {
+                    serverSocket.close();
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+
+                serverSocket = null;
+            }
+
             setDisconnected();
             er.disconnectPeer();
         }
     };
 
     public void setDisconnected() {
-        if (serverSocket != null) {
-            try {
-                serverSocket.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            serverSocket = null;
-        }
+        if (serverSocket != null)
+            return;
 
         setTitle("Disconnected");
     }
