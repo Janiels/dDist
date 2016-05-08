@@ -33,7 +33,7 @@ public class DocumentEventCapturer extends DocumentFilter {
         this.enabled = enabled;
     }
 
-    public void incrementSequence() {
+    public void incrementOurClock() {
         clocks[0]++;
     }
 
@@ -81,7 +81,7 @@ public class DocumentEventCapturer extends DocumentFilter {
     private void insertEvent(MyTextEvent e) {
         if (enabled) {
             e.setFromServer(isServer);
-            incrementSequence();
+            incrementOurClock();
             e.setClocks(clocks.clone());
             // Queue a copy of the event and then modify the textarea
             eventHistory.add(e);
@@ -89,6 +89,8 @@ public class DocumentEventCapturer extends DocumentFilter {
         }
     }
 
+    // Remove all events that did not happen before 'other' and
+    // return them in the reverse order of the one they were performed in.
     ArrayList<MyTextEvent> popEventsAfter(MyTextEvent other) {
         ArrayList<MyTextEvent> after = new ArrayList<>();
 
@@ -117,8 +119,10 @@ public class DocumentEventCapturer extends DocumentFilter {
     }
 
     public void clear() {
+        // Reset vector clocks for new events
         clocks[0] = 0;
         clocks[1] = 0;
+        // There might be old events from old clients, so clear those too
         eventHistory.clear();
         events.clear();
     }
@@ -126,7 +130,7 @@ public class DocumentEventCapturer extends DocumentFilter {
     public void clocksReceived(int[] clocks) {
         this.clocks[0] = Math.max(clocks[0], this.clocks[0]);
         this.clocks[1] = Math.max(clocks[1], this.clocks[1]);
-        incrementSequence();
+        incrementOurClock();
     }
 
     public void insertAppliedEvent(MyTextEvent event) {
