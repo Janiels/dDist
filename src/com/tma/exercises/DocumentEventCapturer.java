@@ -33,7 +33,7 @@ public class DocumentEventCapturer extends DocumentFilter {
         this.enabled = enabled;
     }
 
-    public void incrementOurClock() {
+    private void incrementOurClock() {
         clocks[0]++;
     }
 

@@ -106,12 +106,13 @@ public class EventReplayer {
             // Perform concurrent events backwards: this ensures that
             // offsets are not 'pushed'. However, we can not simply use
             // the offset of o1 and o2 as we could have this situation:
-            // Client inserts a at 0 (c1), b at 1 (c2), c at 2(c3)
+            // Client inserts a at 0 (c1), c at 2 (c2)
             // Server inserts c at 1 (s1)
-            // The server event must come before the client's event, so
-            // s1 < c1. But c1 must come before c3, so c1 < c3.
-            // However c3 must come before s1 as its index is larger, so
-            // c3 < s1 < c1 < c3. So only use the offset from the first events to determine this.
+            // The server event must come before the client's event due to a larger index
+            // so s1 < c1. But c1 happens-before c2, so c1 < c2.
+            // However c3 must come before s1 due to a larger index: so
+            // c3 < s1 < c1 < c3. To resolve this we only use the offset from the first
+            // event to determine the order of client/server events.
             int o1Offset = o1.isFromServer() ? finalFirstServer.getOffset() : finalFirstClient.getOffset();
             int o2Offset = o2.isFromServer() ? finalFirstServer.getOffset() : finalFirstClient.getOffset();
             if (o1Offset > o2Offset)
