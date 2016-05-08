@@ -35,7 +35,7 @@ public class EventReplayer {
             while (true) {
                 MyTextEvent event = (MyTextEvent) in.readObject();
                 // Reverse vector clocks. On both sides we keep our own local
-                // clock in clocks[0], så the received one is reversed from our perspective.
+                // clock in clocks[0], so the received one is reversed from our perspective.
                 int[] clocks = event.getClocks();
                 int temp = clocks[0];
                 clocks[0] = clocks[1];
