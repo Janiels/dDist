@@ -99,31 +99,8 @@ public class DistributedTextEditor extends JFrame {
         public void actionPerformed(ActionEvent e) {
             saveOld();
             area1.setText("");
-            int port;
-            try {
-                port = Integer.parseInt(portNumber.getText());
-            } catch (NumberFormatException ex) {
-                area1.setText("Can't parse " + portNumber.getText());
+            if (!startListening())
                 return;
-            }
-
-            try {
-                serverSocket = new ServerSocket(port);
-            } catch (IOException ex) {
-                area1.setText("Could not start listening" + System.lineSeparator() + ex);
-                return;
-            }
-
-            try {
-                InetAddress localhost = InetAddress.getLocalHost();
-                String localhostAddress = localhost.getHostAddress();
-                setTitle("I'm listening on " + localhostAddress + ":" + port);
-            } catch (UnknownHostException ex) {
-                area1.setText("Cannot resolve the Internet address of the local host.");
-                return;
-            }
-
-            dec.setIsServer(true);
 
             System.out.println("I am the server!");
             new Thread(() -> {
@@ -136,17 +113,8 @@ public class DistributedTextEditor extends JFrame {
                         break;
                     }
 
-                    EventQueue.invokeLater(()->{
-                        // If we have a client already, throw him off as we're accepting
-                        // a new one.
-                        er.disconnectPeer();
-
-                        // Clear old text in case we had previous clients that filled
-                        // them up.
-                        area1.setText("");
-                        area2.setText("");
-
-                        er.setPeer(clientSocket);
+                    EventQueue.invokeLater(() -> {
+                        er.addPeer(clientSocket);
                     });
                 }
             }).start();
@@ -156,6 +124,34 @@ public class DistributedTextEditor extends JFrame {
             SaveAs.setEnabled(false);
         }
     };
+
+    private boolean startListening() {
+        int port;
+        try {
+            port = Integer.parseInt(portNumber.getText());
+        } catch (NumberFormatException ex) {
+            area1.setText("Can't parse " + portNumber.getText());
+            return false;
+        }
+
+        try {
+            serverSocket = new ServerSocket(port);
+        } catch (IOException ex) {
+            area1.setText("Could not start listening" + System.lineSeparator() + ex);
+            return false;
+        }
+
+        try {
+            InetAddress localhost = InetAddress.getLocalHost();
+            String localhostAddress = localhost.getHostAddress();
+            setTitle("I'm listening on " + localhostAddress + ":" + port);
+            dec.setIp(localhostAddress + ":" + port);
+        } catch (UnknownHostException ex) {
+            area1.setText("Cannot resolve the Internet address of the local host.");
+            return false;
+        }
+        return true;
+    }
 
     Action Connect = new AbstractAction("Connect") {
         public void actionPerformed(ActionEvent e) {
@@ -168,11 +164,12 @@ public class DistributedTextEditor extends JFrame {
                 area1.setText("Can't parse " + portNumber.getText());
                 return;
             }
+            if (!startListening())
+                return;
 
             String host = ipaddress.getText() + ":" + port;
             setTitle("Connecting to " + host + "...");
 
-            dec.setIsServer(false);
             System.out.println("I am a client!");
 
             new Thread(() ->
@@ -188,7 +185,7 @@ public class DistributedTextEditor extends JFrame {
                         SaveAs.setEnabled(false);
                         // old text is removed.
                         area2.setText("");
-                        er.setPeer(server);
+                        er.addPeer(server);
                     } else {
                         area1.setText("Could not connect!");
                     }
@@ -218,7 +215,7 @@ public class DistributedTextEditor extends JFrame {
             }
 
             setDisconnected();
-            er.disconnectPeer();
+            er.disconnect();
         }
     };
 

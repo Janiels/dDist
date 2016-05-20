@@ -7,6 +7,8 @@ import java.io.Serializable;
  * @author Jesper Buus Nielsen
  */
 public abstract class MyTextEvent implements Serializable {
+    private String source;
+
     MyTextEvent(int offset) {
         this.offset = offset;
     }
@@ -51,4 +53,8 @@ public abstract class MyTextEvent implements Serializable {
     abstract void perform(JTextArea area);
 
     abstract void undo(JTextArea area);
+
+    public void setSource(String source) {
+        this.source = source;
+    }
 }

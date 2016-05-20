@@ -4,7 +4,6 @@ import javax.swing.*;
 import java.awt.EventQueue;
 import java.io.IOException;
 import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,8 +20,8 @@ public class EventReplayer {
     private final DistributedTextEditor editor;
     private DocumentEventCapturer dec;
     private JTextArea area;
-    private Socket peer;
     private Thread send;
+    private final ArrayList<Peer> peers = new ArrayList<>();
 
     public EventReplayer(DocumentEventCapturer dec, JTextArea area, DistributedTextEditor editor) {
         this.dec = dec;
@@ -62,7 +61,11 @@ public class EventReplayer {
                 });
             }
         } catch (IOException | ClassNotFoundException e) {
-            disconnectPeer();
+            try {
+                peer.close();
+            } catch (IOException e1) {
+                e1.printStackTrace();
+            }
         }
     }
 
@@ -161,37 +164,53 @@ public class EventReplayer {
         }
     }
 
-    private void sendToPeer(Socket peer) {
-        try (ObjectOutputStream out = new ObjectOutputStream(peer.getOutputStream())) {
-            while (true) {
-                MyTextEvent event = dec.take();
-                System.out.println("Sending: " + event);
-                out.writeObject(event);
+    private void sendToPeers() {
+        while (true) {
+            MyTextEvent event;
+            try {
+                event = dec.take();
+            } catch (InterruptedException e) {
+                return;
             }
-        } catch (IOException | InterruptedException e) {
-            // Socket is closed by receiver
+
+            System.out.println("Sending: " + event);
+            synchronized (peers) {
+                for (Peer peer : peers) {
+                    try {
+                        peer.send(event);
+                    } catch (IOException ignored) {
+                    }
+                }
+            }
         }
     }
 
-    public void setPeer(Socket peer) {
-        // Clear the event capturer as it might have events for old clients
-        dec.clear();
-        this.peer = peer;
-        new Thread(() -> acceptFromPeer(peer)).start();
-        send = new Thread(() -> sendToPeer(peer));
-        send.start();
-    }
-
-    public void disconnectPeer() {
-        if (peer == null) {
+    public void addPeer(Socket socket) {
+        Peer peer = null;
+        try {
+            peer = new Peer(socket);
+        } catch (IOException ignored) {
             return;
         }
-        try {
-            send.interrupt();
-            editor.setDisconnected();
-            peer.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+        synchronized (peers) {
+            peers.add(peer);
         }
+        new Thread(() -> acceptFromPeer(socket)).start();
+        if (send == null) {
+            send = new Thread(() -> sendToPeers());
+            send.start();
+        }
+    }
+
+    public void disconnect() {
+        for (Peer peer: peers) {
+            try {
+                peer.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        send.interrupt();
+        editor.setDisconnected();
     }
 }
