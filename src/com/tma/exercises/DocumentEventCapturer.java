@@ -27,7 +27,7 @@ public class DocumentEventCapturer extends DocumentFilter {
     //    empty, then take() will wait until new elements arrive, which is what
     //    we want, as we then don't need to keep asking until there are new elements.
     protected LinkedBlockingQueue<MyTextEvent> eventHistory = new LinkedBlockingQueue<MyTextEvent>();
-    private boolean isServer;
+    private String ip;
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
@@ -80,7 +80,7 @@ public class DocumentEventCapturer extends DocumentFilter {
 
     private void insertEvent(MyTextEvent e) {
         if (enabled) {
-            e.setFromServer(isServer);
+            e.setSource(ip);
             incrementOurClock();
             e.setClocks(clocks.clone());
             // Queue a copy of the event and then modify the textarea
@@ -137,12 +137,11 @@ public class DocumentEventCapturer extends DocumentFilter {
         events.add(event);
     }
 
-
-    public void setIsServer(boolean isServer) {
-        this.isServer = isServer;
+    public String getIp() {
+        return ip;
     }
 
-    public boolean isServer() {
-        return isServer;
+    public void setIp(String ip) {
+        this.ip = ip;
     }
 }
