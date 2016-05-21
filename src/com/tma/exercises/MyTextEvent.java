@@ -63,7 +63,7 @@ public abstract class MyTextEvent implements Serializable {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("offset = " + offset + ", source sourceIndex = " + sourceIndex);
+        sb.append("offset = " + offset + ", sourceIndex = " + sourceIndex);
         sb.append(", clocks: ");
         boolean first = true;
         for (int clock : clocks) {

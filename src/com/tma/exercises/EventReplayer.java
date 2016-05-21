@@ -51,8 +51,8 @@ public class EventReplayer {
 
             while (true) {
                 MyTextEvent event = (MyTextEvent) in.readObject();
-                System.out.println("Received: " + event);
                 EventQueue.invokeLater(() -> {
+                    System.out.println("Receive: " + event);
                     // Make sure later events are timestamped correctly according
                     // to this received one..
                     dec.clocksReceived(event.getClocks());
@@ -78,6 +78,8 @@ public class EventReplayer {
                     } finally {
                         dec.setEnabled(true);
                     }
+
+                    System.out.println("");
                 });
             }
         } catch (IOException | ClassNotFoundException e) {
@@ -164,19 +166,27 @@ public class EventReplayer {
             return 0;
         });
 
-        MyTextEvent previousEvent = null;
-        for (MyTextEvent appliedEvent : events) {
-            if (previousEvent != null && !previousEvent.happenedBefore(appliedEvent)
-                    && previousEvent.getOffset() == appliedEvent.getOffset()
-                    && previousEvent instanceof TextRemoveEvent
-                    && appliedEvent instanceof TextRemoveEvent) {
-                // Ignore one of the concurrent removes at the same location
-                System.out.println("Ignoring duplicate concurrent remove: " + appliedEvent);
-                continue;
+        for (int i = 0; i < events.size(); i++) {
+            MyTextEvent appliedEvent = events.get(i);
+            boolean skip = false;
+            for (int j = 0; j < i; j++) {
+                MyTextEvent previousEvent = events.get(j);
+
+                if (!previousEvent.happenedBefore(appliedEvent)
+                        && previousEvent.getOffset() == appliedEvent.getOffset()
+                        && previousEvent instanceof TextRemoveEvent
+                        && appliedEvent instanceof TextRemoveEvent) {
+                    // Ignore one of the concurrent removes at the same location
+                    System.out.println("Ignoring duplicate concurrent remove: " + appliedEvent);
+                    skip = true;
+                    break;
+                }
             }
 
-            previousEvent = appliedEvent;
-            System.out.println("Reapplying: " + appliedEvent);
+            if (skip)
+                continue;
+
+            System.out.println("Reapply: " + appliedEvent);
             appliedEvent.perform(area);
             dec.insertAppliedEvent(appliedEvent);
         }

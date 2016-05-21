@@ -29,6 +29,6 @@ public class TextRemoveEvent extends MyTextEvent {
 
     @Override
     public String toString() {
-        return String.format("Removing %d chars: %s", getLength(), super.toString());
+        return String.format("Remove '%s': %s", removed, super.toString());
     }
 }
