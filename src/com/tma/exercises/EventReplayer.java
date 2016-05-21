@@ -91,105 +91,126 @@ public class EventReplayer {
         }
     }
 
-    private void performEvent(MyTextEvent event) {
+    private void performEvent(MyTextEvent newEvent) {
         // Get the events that are concurrent or happened after.
-        ArrayList<MyTextEvent> events = dec.popEventsAfter(event);
+        ArrayList<MyTextEvent> events = dec.popEventsAfter(newEvent);
+
+        for (MyTextEvent event : events)
+                event.setAdjustOffset(0);
 
         // Rollback...
-        for (MyTextEvent appliedEvent : events) {
-            System.out.println("Undoing: " + appliedEvent);
-            appliedEvent.undo(area);
-        }
+//        for (MyTextEvent appliedEvent : events) {
+//            System.out.println("Undoing: " + appliedEvent);
+//            appliedEvent.undo(area);
+//        }
+
+        area.setText("");
 
         // Add our new event, and order them all consistently.
         // The key point here is that both sides get the same ordering --
         // this ensures the text does not get desynchronized.
-        events.add(event);
+        events.add(newEvent);
 
-        // Find first events for both sides.
         OptionalInt maxIndex = events.stream().mapToInt(MyTextEvent::getSourceIndex).max();
-        assert maxIndex.isPresent();
+        ArrayList<ArrayList<MyTextEvent>> lists = new ArrayList<>();
+        for (int i = 0; i <= maxIndex.getAsInt(); i++)
+            lists.add(new ArrayList<>());
 
-        MyTextEvent[] firstEvents = new MyTextEvent[maxIndex.getAsInt() + 1];
-
-        for (MyTextEvent e : events) {
-            if (firstEvents[e.getSourceIndex()] == null || e.happenedBefore(firstEvents[e.getSourceIndex()]))
-                firstEvents[e.getSourceIndex()] = e;
+        for (MyTextEvent eventToRedo : events) {
+            lists.get(eventToRedo.getSourceIndex()).add(eventToRedo);
         }
 
-        Collections.sort(events, (o1, o2) -> {
-            // If one event happened before the other according to vector clocks
-            // then apply it first!
-            if (o1.happenedBefore(o2))
-                return -1;
-            if (o2.happenedBefore(o1))
-                return 1;
+        int[] listIndices = new int[lists.size()];
 
-            // Events are concurrent.
-            // Perform concurrent events backwards: this ensures that
-            // offsets are not 'pushed'. However, we can not simply use
-            // the offset of o1 and o2 as we could have this situation:
-            // Client inserts a at 0 (c1), c at 2 (c2)
-            // Server inserts c at 1 (s1)
-            // The server event must come before the client's event due to a larger index
-            // so s1 < c1. But c1 happens-before c2, so c1 < c2.
-            // However c3 must come before s1 due to a larger index: so
-            // c3 < s1 < c1 < c3. To resolve this we only use the offset from the first
-            // event to determine the order of client/server events.
-            int o1Offset = firstEvents[o1.getSourceIndex()].getOffset();
-            int o2Offset = firstEvents[o2.getSourceIndex()].getOffset();
-            if (o1Offset > o2Offset)
-                return -1;
-            if (o1Offset < o2Offset)
-                return 1;
+        ArrayList<MyTextEvent> performed = new ArrayList<>();
+        while (true) {
+            MyTextEvent unconcurrent = findUnconcurrentEvent(lists, listIndices);
 
-            // Concurrent removes/inserts at the same position.
-            if (o1 instanceof TextInsertEvent && o2 instanceof TextInsertEvent) {
-                // Two inserts at same position
-                // Use lower index first.
-                if (o1.getSourceIndex() < o2.getSourceIndex())
-                    return -1;
-
-                assert o1.getSourceIndex() != o2.getSourceIndex();
-                return 1;
-            } else if (o1 instanceof TextInsertEvent) {
-                // Remove and insert: Perform remove first to ensure we don't delete whatever
-                // the other one just added. In this case o2 is remove,
-                // so o1 > o2.
-                return 1;
-            } else if (o2 instanceof TextInsertEvent) {
-                // o1 is remove, perform o1 first
-                return -1;
+            if (unconcurrent != null) {
+                System.out.println("Reapply: " + unconcurrent);
+                unconcurrent.perform(area);
+                performed.add(unconcurrent);
+                listIndices[unconcurrent.getSourceIndex()]++;
+                continue;
             }
 
-            // Two removes at same position: Ignore one of them, we handle this later
-            return 0;
-        });
+            // All events are concurrent. Add them and adjust indices.
+            if (!performConcurrentEvents(lists, listIndices, performed))
+                break;
+        }
 
-        for (int i = 0; i < events.size(); i++) {
-            MyTextEvent appliedEvent = events.get(i);
+        for (MyTextEvent event : performed)
+            dec.insertAppliedEvent(event);
+    }
+
+    private boolean performConcurrentEvents(ArrayList<ArrayList<MyTextEvent>> lists, int[] listIndices, ArrayList<MyTextEvent> performed) {
+        boolean any = false;
+        for (int i = 0; i < listIndices.length; i++) {
+            if (listIndices[i] >= lists.get(i).size())
+                continue;
+
+            any = true;
+
+            MyTextEvent event = lists.get(i).get(listIndices[i]);
             boolean skip = false;
-            for (int j = 0; j < i; j++) {
-                MyTextEvent previousEvent = events.get(j);
+            int adjustOffset = 0;
+            for (int j = 0; j < performed.size(); j++) {
+                MyTextEvent performedEvent = performed.get(j);
+                if (performedEvent.happenedBefore(event))
+                    continue;
 
-                if (!previousEvent.happenedBefore(appliedEvent)
-                        && previousEvent.getOffset() == appliedEvent.getOffset()
-                        && previousEvent instanceof TextRemoveEvent
-                        && appliedEvent instanceof TextRemoveEvent) {
-                    // Ignore one of the concurrent removes at the same location
-                    System.out.println("Ignoring duplicate concurrent remove: " + appliedEvent);
+                if (performedEvent instanceof TextRemoveEvent
+                        && event instanceof TextRemoveEvent
+                        && performedEvent.getOffset() + performedEvent.getAdjustOffset() == event.getOffset() + event.getAdjustOffset()) {
+                    System.out.println("Ignoring duplicate concurrent remove: " + event);
                     skip = true;
                     break;
                 }
+
+                adjustOffset += performedEvent.getAdjustOffset(event.getOffset());
             }
 
-            if (skip)
+            if (!skip) {
+                event.setAdjustOffset(adjustOffset);
+                System.out.println("Reapply: " + event.toString());
+                event.perform(area);
+                performed.add(event);
+            }
+            listIndices[i]++;
+            break;
+        }
+
+        return any;
+    }
+
+    private MyTextEvent findUnconcurrentEvent(ArrayList<ArrayList<MyTextEvent>> lists, int[] listIndices) {
+        // If one event happened before the others, then start with that
+        for (int i = 0; i < lists.size(); i++) {
+            if (listIndices[i] >= lists.get(i).size())
                 continue;
 
-            System.out.println("Reapply: " + appliedEvent);
-            appliedEvent.perform(area);
-            dec.insertAppliedEvent(appliedEvent);
+            MyTextEvent event = lists.get(i).get(listIndices[i]);
+            boolean concurrent = false;
+            for (int j = 0; j < lists.size(); j++) {
+                if (i == j)
+                    continue;
+
+                for (int k = 0; k < listIndices[j]; k++) {
+                    if (!event.happenedBefore(lists.get(j).get(k))) {
+                        concurrent = true;
+                        break;
+                    }
+                }
+
+                if (concurrent)
+                    break;
+            }
+
+            if (!concurrent)
+                return event;
         }
+
+        return null;
     }
 
     private void sendToPeers() {

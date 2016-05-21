@@ -12,11 +12,20 @@ public abstract class MyTextEvent implements Serializable {
     }
 
     private int offset;
+    private transient int adjustOffset;
     private int[] clocks;
     private int sourceIndex;
 
     int getOffset() {
         return offset;
+    }
+
+    public int getAdjustOffset() {
+        return adjustOffset;
+    }
+
+    public void setAdjustOffset(int adjustOffset) {
+        this.adjustOffset = adjustOffset;
     }
 
     public int[] getClocks() {
@@ -63,7 +72,7 @@ public abstract class MyTextEvent implements Serializable {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("offset = " + offset + ", sourceIndex = " + sourceIndex);
+        sb.append("offset = " + offset + ", adj = " + adjustOffset + ", sourceIndex = " + sourceIndex);
         sb.append(", clocks: ");
         boolean first = true;
         for (int clock : clocks) {
@@ -76,4 +85,6 @@ public abstract class MyTextEvent implements Serializable {
 
         return sb.toString();
     }
+
+    public abstract int getAdjustOffset(int offset);
 }

@@ -20,7 +20,7 @@ public class TextInsertEvent extends MyTextEvent {
 
     @Override
     void perform(JTextArea area) {
-        area.insert(getText(), getOffset());
+        area.insert(getText(), getOffset() + getAdjustOffset());
     }
 
     @Override
@@ -31,6 +31,14 @@ public class TextInsertEvent extends MyTextEvent {
     @Override
     public String toString() {
         return String.format("Insert '%s': %s", text, super.toString());
+    }
+
+    @Override
+    public int getAdjustOffset(int offset) {
+        if (getOffset() + getAdjustOffset() <= offset)
+            return getText().length();
+
+        return 0;
     }
 }
 

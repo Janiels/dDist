@@ -62,7 +62,7 @@ public class DocumentEventCapturer extends DocumentFilter {
             throws BadLocationException {
         String text = fb.getDocument().getText(offset, length);
         super.remove(fb, offset, length);
-        insertEvent(new TextRemoveEvent(offset, length, text));
+        insertEvent(new TextRemoveEvent(offset, text));
     }
 
     public void replace(FilterBypass fb, int offset,
@@ -74,7 +74,7 @@ public class DocumentEventCapturer extends DocumentFilter {
         super.replace(fb, offset, length, str, a);
         // Queue a copy of the event and then modify the text
         if (length > 0) {
-            insertEvent(new TextRemoveEvent(offset, length, text));
+            insertEvent(new TextRemoveEvent(offset, text));
         }
         insertEvent(new TextInsertEvent(offset, str));
     }
@@ -98,25 +98,31 @@ public class DocumentEventCapturer extends DocumentFilter {
     // return them in the reverse order of the one they were performed in.
     ArrayList<MyTextEvent> popEventsAfter(MyTextEvent other) {
         ArrayList<MyTextEvent> after = new ArrayList<>();
+        after.addAll(events);
 
-        // Find first event that happened concurrently with 'other'
-        // or after 'other'
-        int first;
-        for (first = 0; first < events.size(); first++) {
-            if (!events.get(first).happenedBefore(other))
-                break;
-        }
-
-        if (first == events.size())
-            return after;
-
-        for (int i = events.size() - 1; i >= first; i--) {
-            MyTextEvent event = events.get(i);
-            after.add(event);
-            events.remove(i);
-        }
-
+        events.clear();
         return after;
+
+//        // Find first event that happened concurrently with 'other'
+//        // or after 'other'
+//        int first;
+//        for (first = 0; first < events.size(); first++) {
+//            if (!events.get(first).happenedBefore(other))
+//                break;
+//        }
+//
+//        first = 0;
+//
+//        if (first == events.size())
+//            return after;
+//
+//        for (int i = events.size() - 1; i >= first; i--) {
+//            MyTextEvent event = events.get(i);
+//            after.add(event);
+//            events.remove(i);
+//        }
+//
+//        return after;
     }
 
     public void clocksReceived(int[] newClocks) {

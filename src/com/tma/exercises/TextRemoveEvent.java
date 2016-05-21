@@ -4,22 +4,20 @@ import javax.swing.*;
 
 public class TextRemoveEvent extends MyTextEvent {
 
-    private int length;
     private String removed;
 
-    public TextRemoveEvent(int offset, int length, String text) {
+    public TextRemoveEvent(int offset, String text) {
         super(offset);
-        this.length = length;
         removed = text;
     }
 
     public int getLength() {
-        return length;
+        return removed.length();
     }
 
     @Override
     void perform(JTextArea area) {
-        area.replaceRange(null, getOffset(), getOffset() + getLength());
+        area.replaceRange(null, getOffset() + getAdjustOffset(), getOffset() + getAdjustOffset() + getLength());
     }
 
     @Override
@@ -30,5 +28,15 @@ public class TextRemoveEvent extends MyTextEvent {
     @Override
     public String toString() {
         return String.format("Remove '%s': %s", removed, super.toString());
+    }
+
+    @Override
+    public int getAdjustOffset(int offset) {
+        // If this delete happens before, then we need to move
+        // the other offset backwards
+        if (getOffset() + getAdjustOffset() < offset)
+            return -getLength();
+
+        return 0;
     }
 }
