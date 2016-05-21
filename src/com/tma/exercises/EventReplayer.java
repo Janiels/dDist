@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.net.Socket;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.OptionalInt;
 
 /**
@@ -93,24 +92,19 @@ public class EventReplayer {
 
     private void performEvent(MyTextEvent newEvent) {
         // Get the events that are concurrent or happened after.
-        ArrayList<MyTextEvent> events = dec.popEventsAfter(newEvent);
+        ArrayList<MyTextEvent> events = dec.popEvents();
 
-        for (MyTextEvent event : events)
-                event.setAdjustOffset(0);
-
-        // Rollback...
-//        for (MyTextEvent appliedEvent : events) {
-//            System.out.println("Undoing: " + appliedEvent);
-//            appliedEvent.undo(area);
-//        }
+        // Roll back everything
+        for (MyTextEvent event : events) {
+            event.setAdjustOffset(0);
+        }
 
         area.setText("");
 
-        // Add our new event, and order them all consistently.
-        // The key point here is that both sides get the same ordering --
-        // this ensures the text does not get desynchronized.
+        // Add our new event
         events.add(newEvent);
 
+        // Create peer-local lists of events
         OptionalInt maxIndex = events.stream().mapToInt(MyTextEvent::getSourceIndex).max();
         ArrayList<ArrayList<MyTextEvent>> lists = new ArrayList<>();
         for (int i = 0; i <= maxIndex.getAsInt(); i++)
@@ -120,41 +114,70 @@ public class EventReplayer {
             lists.get(eventToRedo.getSourceIndex()).add(eventToRedo);
         }
 
+        // Now merge events into text field.
+        // Keep track of index into each peer's events.
         int[] listIndices = new int[lists.size()];
-
         ArrayList<MyTextEvent> performed = new ArrayList<>();
         while (true) {
-            MyTextEvent unconcurrent = findUnconcurrentEvent(lists, listIndices);
-
-            if (unconcurrent != null) {
-                performEvent(unconcurrent, performed);
-                listIndices[unconcurrent.getSourceIndex()]++;
+            // If any of peer's current events happened first among the events
+            // then do that.
+            MyTextEvent first = findUnconcurrentEvent(lists, listIndices);
+            if (first != null) {
+                redoEvent(first, performed);
+                listIndices[first.getSourceIndex()]++;
                 continue;
             }
 
-            // All events are concurrent. Add them and adjust indices.
-            if (!performConcurrentEvents(lists, listIndices, performed))
+            // No event happened first, so all current events are concurrent.
+            MyTextEvent concurrent = findConcurrentEvent(lists, listIndices);
+            // Do we have anymore events?
+            if (concurrent == null)
                 break;
+
+            redoEvent(concurrent, performed);
+            listIndices[concurrent.getSourceIndex()]++;
         }
 
         for (MyTextEvent event : performed)
             dec.insertAppliedEvent(event);
     }
 
-    private boolean performConcurrentEvents(ArrayList<ArrayList<MyTextEvent>> lists, int[] listIndices, ArrayList<MyTextEvent> performed) {
+    private MyTextEvent findUnconcurrentEvent(ArrayList<ArrayList<MyTextEvent>> lists, int[] listIndices) {
+        for (int i = 0; i < lists.size(); i++) {
+            if (listIndices[i] >= lists.get(i).size())
+                continue;
+
+            MyTextEvent event = lists.get(i).get(listIndices[i]);
+            boolean concurrent = false;
+            for (int j = 0; j < lists.size(); j++) {
+                if (i == j || listIndices[j] >= lists.get(j).size())
+                    continue;
+
+                if (!event.happenedBefore(lists.get(j).get(listIndices[j]))) {
+                    concurrent = true;
+                    break;
+                }
+            }
+
+            if (!concurrent)
+                return event;
+        }
+
+        return null;
+    }
+
+    private MyTextEvent findConcurrentEvent(ArrayList<ArrayList<MyTextEvent>> lists, int[] listIndices) {
         for (int i = 0; i < listIndices.length; i++) {
             if (listIndices[i] >= lists.get(i).size())
                 continue;
 
-            performEvent(lists.get(i).get(listIndices[i]), performed);
-            listIndices[i]++;
-            return true;
+            return lists.get(i).get(listIndices[i]);
         }
 
-        return false;
+        return null;
     }
 
-    private void performEvent(MyTextEvent myTextEvent, ArrayList<MyTextEvent> performed) {
+    private void redoEvent(MyTextEvent myTextEvent, ArrayList<MyTextEvent> performed) {
         MyTextEvent event = myTextEvent;
         boolean skip = false;
         int adjustOffset = 0;
@@ -180,31 +203,6 @@ public class EventReplayer {
             event.perform(area);
             performed.add(event);
         }
-    }
-
-    private MyTextEvent findUnconcurrentEvent(ArrayList<ArrayList<MyTextEvent>> lists, int[] listIndices) {
-        // If one event happened before the others, then start with that
-        for (int i = 0; i < lists.size(); i++) {
-            if (listIndices[i] >= lists.get(i).size())
-                continue;
-
-            MyTextEvent event = lists.get(i).get(listIndices[i]);
-            boolean concurrent = false;
-            for (int j = 0; j < lists.size(); j++) {
-                if (i == j || listIndices[j] >= lists.get(j).size())
-                    continue;
-
-                if (!event.happenedBefore(lists.get(j).get(listIndices[j]))) {
-                    concurrent = true;
-                    break;
-                }
-            }
-
-            if (!concurrent)
-                return event;
-        }
-
-        return null;
     }
 
     private void sendToPeers() {
@@ -233,35 +231,35 @@ public class EventReplayer {
     }
 
     public void addPeer(Socket socket) {
-        int index = peers.size() + 1;
-
-        Peer peer;
-        try {
-            peer = new Peer(socket, index);
-        } catch (IOException ignored) {
-            return;
-        }
-
-        synchronized (peers) {
-            peers.add(peer);
-        }
-
-        try {
-            peer.send(new Welcome(area.getText(), index, dec.getClocks()));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
         EventQueue.invokeLater(() -> {
-            for (MyTextEvent event : dec.events)
+            synchronized (peers) {
+                int index = peers.size() + 1;
+
+                Peer peer;
                 try {
-                    peer.send(event);
+                    peer = new Peer(socket, index);
+                } catch (IOException ignored) {
+                    return;
+                }
+
+                for (MyTextEvent event : dec.getEvents())
+                    try {
+                        peer.send(event);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
+                try {
+                    peer.send(new Welcome(index));
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-        });
 
-        new Thread(() -> acceptFromPeer(peer, false)).start();
+                peers.add(peer);
+
+                new Thread(() -> acceptFromPeer(peer, false)).start();
+            }
+        });
     }
 
     public void setServer(Socket socket) {

@@ -17,7 +17,7 @@ import javax.swing.text.DocumentFilter;
 public class DocumentEventCapturer extends DocumentFilter {
     private boolean enabled = true;
     private int[] clocks = new int[1];
-    public final ArrayList<MyTextEvent> events = new ArrayList<>();
+    private ArrayList<MyTextEvent> events = new ArrayList<>();
     private int ourIndex;
 
     public void setOurIndex(int ourIndex) {
@@ -94,37 +94,6 @@ public class DocumentEventCapturer extends DocumentFilter {
         this.clocks[ourIndex]++;
     }
 
-    // Remove all events that did not happen before 'other' and
-    // return them in the reverse order of the one they were performed in.
-    ArrayList<MyTextEvent> popEventsAfter(MyTextEvent other) {
-        ArrayList<MyTextEvent> after = new ArrayList<>();
-        after.addAll(events);
-
-        events.clear();
-        return after;
-
-//        // Find first event that happened concurrently with 'other'
-//        // or after 'other'
-//        int first;
-//        for (first = 0; first < events.size(); first++) {
-//            if (!events.get(first).happenedBefore(other))
-//                break;
-//        }
-//
-//        first = 0;
-//
-//        if (first == events.size())
-//            return after;
-//
-//        for (int i = events.size() - 1; i >= first; i--) {
-//            MyTextEvent event = events.get(i);
-//            after.add(event);
-//            events.remove(i);
-//        }
-//
-//        return after;
-    }
-
     public void clocksReceived(int[] newClocks) {
         // Grow array if current is too small
         if (newClocks.length > clocks.length) {
@@ -145,11 +114,23 @@ public class DocumentEventCapturer extends DocumentFilter {
         events.add(event);
     }
 
+    public ArrayList<MyTextEvent> popEvents() {
+        ArrayList<MyTextEvent> events = new ArrayList<>(this.events);
+        this.events.clear();
+
+        return events;
+    }
+
     public void clear() {
         events.clear();
+        eventHistory.clear();
     }
 
     public int[] getClocks() {
         return clocks;
+    }
+
+    public ArrayList<MyTextEvent> getEvents() {
+        return events;
     }
 }
