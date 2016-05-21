@@ -13,7 +13,6 @@ import java.net.UnknownHostException;
 public class DistributedTextEditor extends JFrame {
 
     private JTextArea area1 = new JTextArea(20, 120);
-    private JTextArea area2 = new JTextArea(20, 120);
     private JTextField ipaddress = new JTextField("192.168.87.101");
     private JTextField portNumber = new JTextField("40615");
 
@@ -30,9 +29,7 @@ public class DistributedTextEditor extends JFrame {
     public DistributedTextEditor() {
         area1.setFont(new Font("Monospaced", Font.PLAIN, 12));
 
-        area2.setFont(new Font("Monospaced", Font.PLAIN, 12));
         ((AbstractDocument) area1.getDocument()).setDocumentFilter(dec);
-        area2.setEditable(false);
 
         Container content = getContentPane();
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
@@ -42,12 +39,6 @@ public class DistributedTextEditor extends JFrame {
                         JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
                         JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
         content.add(scroll1, BorderLayout.CENTER);
-
-        JScrollPane scroll2 =
-                new JScrollPane(area2,
-                        JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
-                        JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
-        content.add(scroll2, BorderLayout.CENTER);
 
         content.add(ipaddress, BorderLayout.CENTER);
         content.add(portNumber, BorderLayout.CENTER);
@@ -80,9 +71,6 @@ public class DistributedTextEditor extends JFrame {
         area1.addKeyListener(k1);
         setDisconnected();
         setVisible(true);
-        area1.insert("Example of how to capture stuff from the event queue and replay it in another buffer.\n" +
-                "Try to type and delete stuff in the top area.\n" +
-                "Then figure out how it works.\n", 0);
 
         er = new EventReplayer(dec, area1, this);
     }
@@ -102,6 +90,7 @@ public class DistributedTextEditor extends JFrame {
             if (!startListening())
                 return;
 
+            dec.clear();
             System.out.println("I am the server!");
             new Thread(() -> {
                 while (true) {
@@ -113,9 +102,7 @@ public class DistributedTextEditor extends JFrame {
                         break;
                     }
 
-                    EventQueue.invokeLater(() -> {
-                        er.addPeer(clientSocket);
-                    });
+                    EventQueue.invokeLater(() -> er.addPeer(clientSocket));
                 }
             }).start();
 
@@ -145,7 +132,6 @@ public class DistributedTextEditor extends JFrame {
             InetAddress localhost = InetAddress.getLocalHost();
             String localhostAddress = localhost.getHostAddress();
             setTitle("I'm listening on " + localhostAddress + ":" + port);
-            dec.setIp(localhostAddress + ":" + port);
         } catch (UnknownHostException ex) {
             area1.setText("Cannot resolve the Internet address of the local host.");
             return false;
@@ -164,8 +150,6 @@ public class DistributedTextEditor extends JFrame {
                 area1.setText("Can't parse " + portNumber.getText());
                 return;
             }
-            if (!startListening())
-                return;
 
             String host = ipaddress.getText() + ":" + port;
             setTitle("Connecting to " + host + "...");
@@ -184,8 +168,8 @@ public class DistributedTextEditor extends JFrame {
                         Save.setEnabled(false);
                         SaveAs.setEnabled(false);
                         // old text is removed.
-                        area2.setText("");
-                        er.addPeer(server);
+                        dec.clear();
+                        er.setServer(server);
                     } else {
                         area1.setText("Could not connect!");
                     }

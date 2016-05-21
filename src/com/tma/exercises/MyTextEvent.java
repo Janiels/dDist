@@ -7,22 +7,16 @@ import java.io.Serializable;
  * @author Jesper Buus Nielsen
  */
 public abstract class MyTextEvent implements Serializable {
-    private String source;
-
     MyTextEvent(int offset) {
         this.offset = offset;
     }
 
     private int offset;
     private int[] clocks;
-    private boolean fromServer;
+    private int sourceIndex;
 
     int getOffset() {
         return offset;
-    }
-
-    public void setOffset(int offset) {
-        this.offset = offset;
     }
 
     public int[] getClocks() {
@@ -34,27 +28,52 @@ public abstract class MyTextEvent implements Serializable {
     }
 
     public boolean happenedBefore(MyTextEvent other) {
-        if (this.clocks[0] > other.clocks[0])
-            return false;
-        if (this.clocks[1] > other.clocks[1])
-            return false;
+        int max = Math.max(this.clocks.length, other.clocks.length);
+        // If any of ours are larger, then we did not happen before
+        for (int i = 0; i < max; i++) {
+            int ourClock = i >= this.clocks.length ? 0 : this.clocks[i];
+            int otherClock = i >= other.clocks.length ? 0 : other.clocks[i];
+            if (ourClock > otherClock)
+                return false;
+        }
 
-        return this.clocks[0] < other.clocks[0] || this.clocks[1] < other.clocks[1];
+        // If any of ours is smaller, then we happened before
+        for (int i = 0; i < max; i++) {
+            int ourClock = i >= this.clocks.length ? 0 : this.clocks[i];
+            int otherClock = i >= other.clocks.length ? 0 : other.clocks[i];
+            if (ourClock < otherClock)
+                return true;
+        }
+
+        return false;
     }
 
-    public boolean isFromServer() {
-        return fromServer;
+    public int getSourceIndex() {
+        return sourceIndex;
     }
 
-    public void setFromServer(boolean fromServer) {
-        this.fromServer = fromServer;
+    public void setSourceIndex(int sourceIndex) {
+        this.sourceIndex = sourceIndex;
     }
 
     abstract void perform(JTextArea area);
 
     abstract void undo(JTextArea area);
 
-    public void setSource(String source) {
-        this.source = source;
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("offset = " + offset + ", source sourceIndex = " + sourceIndex);
+        sb.append(", clocks: ");
+        boolean first = true;
+        for (int clock : clocks) {
+            if (!first)
+                sb.append(", ");
+
+            sb.append(clock);
+            first = false;
+        }
+
+        return sb.toString();
     }
 }

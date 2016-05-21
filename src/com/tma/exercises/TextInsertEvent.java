@@ -30,7 +30,7 @@ public class TextInsertEvent extends MyTextEvent {
 
     @Override
     public String toString() {
-        return String.format("Insert '%s' at %d (clock[0] %d, clock[1] %d, from server: %s)", text, getOffset(), getClocks()[0], getClocks()[1], isFromServer());
+        return String.format("Insert '%s': %s", text, super.toString());
     }
 }
 

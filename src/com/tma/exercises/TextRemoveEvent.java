@@ -29,6 +29,6 @@ public class TextRemoveEvent extends MyTextEvent {
 
     @Override
     public String toString() {
-        return String.format("Removing %d bytes at %d (clock[0] %d, clock[1] %d, from server: %s)", getLength(), getOffset(), getClocks()[0], getClocks()[1], isFromServer());
+        return String.format("Removing %d chars: %s", getLength(), super.toString());
     }
 }

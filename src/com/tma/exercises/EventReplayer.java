@@ -7,6 +7,7 @@ import java.io.ObjectInputStream;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.OptionalInt;
 
 /**
  * Takes the event recorded by the DocumentEventCapturer and replays
@@ -20,34 +21,53 @@ public class EventReplayer {
     private final DistributedTextEditor editor;
     private DocumentEventCapturer dec;
     private JTextArea area;
-    private Thread send;
     private final ArrayList<Peer> peers = new ArrayList<>();
+    private Thread send;
 
     public EventReplayer(DocumentEventCapturer dec, JTextArea area, DistributedTextEditor editor) {
         this.dec = dec;
         this.area = area;
         this.editor = editor;
+        send = new Thread(() -> sendToPeers());
+        send.start();
     }
 
-    private void acceptFromPeer(Socket peer) {
-        try (ObjectInputStream in = new ObjectInputStream(peer.getInputStream())) {
+    private void acceptFromPeer(Peer peer, boolean isClient) {
+        try (ObjectInputStream in = new ObjectInputStream(peer.getSocket().getInputStream())) {
+            if (isClient) {
+                Welcome welcome = (Welcome) in.readObject();
+                System.out.println("Received welcome! My index is " + welcome.getIndex());
+                EventQueue.invokeLater(() -> {
+                    dec.setOurIndex(welcome.getIndex());
+                    dec.clocksReceived(welcome.getClocks());
+                    dec.setEnabled(false);
+                    try {
+                        area.setText(welcome.getText());
+                    } finally {
+                        dec.setEnabled(true);
+                    }
+                });
+            }
+
             while (true) {
                 MyTextEvent event = (MyTextEvent) in.readObject();
-                // Reverse vector clocks. On both sides we keep our own local
-                // clock in clocks[0], so the received one is reversed from our perspective.
-                int[] clocks = event.getClocks();
-                int temp = clocks[0];
-                clocks[0] = clocks[1];
-                clocks[1] = temp;
-
                 System.out.println("Received: " + event);
                 EventQueue.invokeLater(() -> {
                     // Make sure later events are timestamped correctly according
                     // to this received one..
-                    dec.clocksReceived(clocks);
+                    dec.clocksReceived(event.getClocks());
 
-                    // Do not capture the events we make when inserting
-                    // other side's events
+                    // If we're the server then send this event out to all
+                    // other peers
+                    if (!isClient) {
+                        try {
+                            dec.eventHistory.put(event);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                    // Do not capture received events again
                     dec.setEnabled(false);
                     try {
                         performEvent(event);
@@ -85,16 +105,16 @@ public class EventReplayer {
         events.add(event);
 
         // Find first events for both sides.
-        MyTextEvent firstClient = null, firstServer = null;
+        OptionalInt maxIndex = events.stream().mapToInt(MyTextEvent::getSourceIndex).max();
+        assert maxIndex.isPresent();
+
+        MyTextEvent[] firstEvents = new MyTextEvent[maxIndex.getAsInt() + 1];
+
         for (MyTextEvent e : events) {
-            if (e.isFromServer() && (firstServer == null || e.happenedBefore(firstServer)))
-                firstServer = e;
-            else if (!e.isFromServer() && (firstClient == null || e.happenedBefore(firstClient)))
-                firstClient = e;
+            if (firstEvents[e.getSourceIndex()] == null || e.happenedBefore(firstEvents[e.getSourceIndex()]))
+                firstEvents[e.getSourceIndex()] = e;
         }
 
-        MyTextEvent finalFirstServer = firstServer;
-        MyTextEvent finalFirstClient = firstClient;
         Collections.sort(events, (o1, o2) -> {
             // If one event happened before the other according to vector clocks
             // then apply it first!
@@ -104,8 +124,6 @@ public class EventReplayer {
                 return 1;
 
             // Events are concurrent.
-            // When they are concurrent they shouldn't be from the same machine
-            assert o1.isFromServer() == !o2.isFromServer();
             // Perform concurrent events backwards: this ensures that
             // offsets are not 'pushed'. However, we can not simply use
             // the offset of o1 and o2 as we could have this situation:
@@ -116,8 +134,8 @@ public class EventReplayer {
             // However c3 must come before s1 due to a larger index: so
             // c3 < s1 < c1 < c3. To resolve this we only use the offset from the first
             // event to determine the order of client/server events.
-            int o1Offset = o1.isFromServer() ? finalFirstServer.getOffset() : finalFirstClient.getOffset();
-            int o2Offset = o2.isFromServer() ? finalFirstServer.getOffset() : finalFirstClient.getOffset();
+            int o1Offset = firstEvents[o1.getSourceIndex()].getOffset();
+            int o2Offset = firstEvents[o2.getSourceIndex()].getOffset();
             if (o1Offset > o2Offset)
                 return -1;
             if (o1Offset < o2Offset)
@@ -126,12 +144,12 @@ public class EventReplayer {
             // Concurrent removes/inserts at the same position.
             if (o1 instanceof TextInsertEvent && o2 instanceof TextInsertEvent) {
                 // Two inserts at same position
-                // Either order would be fine as long as it is consistent on both sides.
-                // Use server's first.
-                if (o1.isFromServer() && !o2.isFromServer())
+                // Use lower index first.
+                if (o1.getSourceIndex() < o2.getSourceIndex())
                     return -1;
-                if (o2.isFromServer() && !o1.isFromServer())
-                    return 1;
+
+                assert o1.getSourceIndex() != o2.getSourceIndex();
+                return 1;
             } else if (o1 instanceof TextInsertEvent) {
                 // Remove and insert: Perform remove first to ensure we don't delete whatever
                 // the other one just added. In this case o2 is remove,
@@ -176,6 +194,10 @@ public class EventReplayer {
             System.out.println("Sending: " + event);
             synchronized (peers) {
                 for (Peer peer : peers) {
+                    // Don't send back to source peer
+                    if (peer.getIndex() == event.getSourceIndex())
+                        continue;
+
                     try {
                         peer.send(event);
                     } catch (IOException ignored) {
@@ -186,24 +208,46 @@ public class EventReplayer {
     }
 
     public void addPeer(Socket socket) {
-        Peer peer = null;
+        int index = peers.size() + 1;
+
+        Peer peer;
         try {
-            peer = new Peer(socket);
+            peer = new Peer(socket, index);
         } catch (IOException ignored) {
             return;
         }
+
         synchronized (peers) {
             peers.add(peer);
         }
-        new Thread(() -> acceptFromPeer(socket)).start();
-        if (send == null) {
-            send = new Thread(() -> sendToPeers());
-            send.start();
+
+        try {
+            peer.send(new Welcome(area.getText(), index, dec.getClocks()));
+        } catch (IOException e) {
+            e.printStackTrace();
         }
+
+        new Thread(() -> acceptFromPeer(peer, false)).start();
+    }
+
+    public void setServer(Socket socket) {
+        Peer server;
+        try {
+            // Server has index 0
+            server = new Peer(socket, 0);
+        } catch (IOException ignored) {
+            return;
+        }
+
+        synchronized (peers) {
+            peers.add(server);
+        }
+
+        new Thread(() -> acceptFromPeer(server, true)).start();
     }
 
     public void disconnect() {
-        for (Peer peer: peers) {
+        for (Peer peer : peers) {
             try {
                 peer.close();
             } catch (IOException e) {

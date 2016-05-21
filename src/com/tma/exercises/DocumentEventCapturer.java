@@ -16,8 +16,14 @@ import javax.swing.text.DocumentFilter;
  */
 public class DocumentEventCapturer extends DocumentFilter {
     private boolean enabled = true;
-    private int[] clocks = new int[2];
+    private int[] clocks = new int[1];
     private final ArrayList<MyTextEvent> events = new ArrayList<>();
+    private int ourIndex;
+
+    public void setOurIndex(int ourIndex) {
+        this.ourIndex = ourIndex;
+        this.clocks = new int[ourIndex + 1];
+    }
 
     // We are using a blocking queue for two reasons:
     // 1) They are thread safe, i.e., we can have two threads add and take elements
@@ -27,14 +33,9 @@ public class DocumentEventCapturer extends DocumentFilter {
     //    empty, then take() will wait until new elements arrive, which is what
     //    we want, as we then don't need to keep asking until there are new elements.
     protected LinkedBlockingQueue<MyTextEvent> eventHistory = new LinkedBlockingQueue<MyTextEvent>();
-    private String ip;
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-    }
-
-    private void incrementOurClock() {
-        clocks[0]++;
     }
 
     /**
@@ -80,13 +81,17 @@ public class DocumentEventCapturer extends DocumentFilter {
 
     private void insertEvent(MyTextEvent e) {
         if (enabled) {
-            e.setSource(ip);
+            e.setSourceIndex(ourIndex);
             incrementOurClock();
             e.setClocks(clocks.clone());
             // Queue a copy of the event and then modify the textarea
             eventHistory.add(e);
             events.add(e);
         }
+    }
+
+    private void incrementOurClock() {
+        this.clocks[ourIndex]++;
     }
 
     // Remove all events that did not happen before 'other' and
@@ -114,22 +119,19 @@ public class DocumentEventCapturer extends DocumentFilter {
         return after;
     }
 
-    void deleteEventsBefore(MyTextEvent other) {
-        events.removeIf(e -> e.happenedBefore(other));
-    }
+    public void clocksReceived(int[] newClocks) {
+        // Grow array if current is too small
+        if (newClocks.length > clocks.length) {
+            int[] resized = new int[newClocks.length];
+            System.arraycopy(clocks, 0, resized, 0, clocks.length);
+            clocks = resized;
+        }
 
-    public void clear() {
-        // Reset vector clocks for new events
-        clocks[0] = 0;
-        clocks[1] = 0;
-        // There might be old events from old clients, so clear those too
-        eventHistory.clear();
-        events.clear();
-    }
+        // Take max of components
+        for (int i = 0; i < newClocks.length; i++) {
+            clocks[i] = Math.max(clocks[i], newClocks[i]);
+        }
 
-    public void clocksReceived(int[] clocks) {
-        this.clocks[0] = Math.max(clocks[0], this.clocks[0]);
-        this.clocks[1] = Math.max(clocks[1], this.clocks[1]);
         incrementOurClock();
     }
 
@@ -137,11 +139,11 @@ public class DocumentEventCapturer extends DocumentFilter {
         events.add(event);
     }
 
-    public String getIp() {
-        return ip;
+    public void clear() {
+        events.clear();
     }
 
-    public void setIp(String ip) {
-        this.ip = ip;
+    public int[] getClocks() {
+        return clocks;
     }
 }
