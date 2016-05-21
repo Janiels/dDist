@@ -17,7 +17,7 @@ import javax.swing.text.DocumentFilter;
 public class DocumentEventCapturer extends DocumentFilter {
     private boolean enabled = true;
     private int[] clocks = new int[1];
-    private final ArrayList<MyTextEvent> events = new ArrayList<>();
+    public final ArrayList<MyTextEvent> events = new ArrayList<>();
     private int ourIndex;
 
     public void setOurIndex(int ourIndex) {

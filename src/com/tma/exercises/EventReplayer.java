@@ -39,13 +39,13 @@ public class EventReplayer {
                 System.out.println("Received welcome! My index is " + welcome.getIndex());
                 EventQueue.invokeLater(() -> {
                     dec.setOurIndex(welcome.getIndex());
-                    dec.clocksReceived(welcome.getClocks());
-                    dec.setEnabled(false);
-                    try {
-                        area.setText(welcome.getText());
-                    } finally {
-                        dec.setEnabled(true);
-                    }
+//                    dec.clocksReceived(welcome.getClocks());
+//                    dec.setEnabled(false);
+//                    try {
+//                        area.setText(welcome.getText());
+//                    } finally {
+//                        dec.setEnabled(true);
+//                    }
                 });
             }
 
@@ -127,9 +127,7 @@ public class EventReplayer {
             MyTextEvent unconcurrent = findUnconcurrentEvent(lists, listIndices);
 
             if (unconcurrent != null) {
-                System.out.println("Reapply: " + unconcurrent);
-                unconcurrent.perform(area);
-                performed.add(unconcurrent);
+                performEvent(unconcurrent, performed);
                 listIndices[unconcurrent.getSourceIndex()]++;
                 continue;
             }
@@ -144,43 +142,44 @@ public class EventReplayer {
     }
 
     private boolean performConcurrentEvents(ArrayList<ArrayList<MyTextEvent>> lists, int[] listIndices, ArrayList<MyTextEvent> performed) {
-        boolean any = false;
         for (int i = 0; i < listIndices.length; i++) {
             if (listIndices[i] >= lists.get(i).size())
                 continue;
 
-            any = true;
-
-            MyTextEvent event = lists.get(i).get(listIndices[i]);
-            boolean skip = false;
-            int adjustOffset = 0;
-            for (int j = 0; j < performed.size(); j++) {
-                MyTextEvent performedEvent = performed.get(j);
-                if (performedEvent.happenedBefore(event))
-                    continue;
-
-                if (performedEvent instanceof TextRemoveEvent
-                        && event instanceof TextRemoveEvent
-                        && performedEvent.getOffset() + performedEvent.getAdjustOffset() == event.getOffset() + event.getAdjustOffset()) {
-                    System.out.println("Ignoring duplicate concurrent remove: " + event);
-                    skip = true;
-                    break;
-                }
-
-                adjustOffset += performedEvent.getAdjustOffset(event.getOffset());
-            }
-
-            if (!skip) {
-                event.setAdjustOffset(adjustOffset);
-                System.out.println("Reapply: " + event.toString());
-                event.perform(area);
-                performed.add(event);
-            }
+            performEvent(lists.get(i).get(listIndices[i]), performed);
             listIndices[i]++;
-            break;
+            return true;
         }
 
-        return any;
+        return false;
+    }
+
+    private void performEvent(MyTextEvent myTextEvent, ArrayList<MyTextEvent> performed) {
+        MyTextEvent event = myTextEvent;
+        boolean skip = false;
+        int adjustOffset = 0;
+        for (int j = 0; j < performed.size(); j++) {
+            MyTextEvent performedEvent = performed.get(j);
+            if (performedEvent.happenedBefore(event))
+                continue;
+
+            if (performedEvent instanceof TextRemoveEvent
+                    && event instanceof TextRemoveEvent
+                    && performedEvent.getOffset() + performedEvent.getAdjustOffset() == event.getOffset() + event.getAdjustOffset()) {
+                System.out.println("Ignoring duplicate concurrent remove: " + event);
+                skip = true;
+                break;
+            }
+
+            adjustOffset += performedEvent.getAdjustOffset(event.getOffset() + adjustOffset);
+        }
+
+        if (!skip) {
+            event.setAdjustOffset(adjustOffset);
+            System.out.println("Reapply: " + event.toString());
+            event.perform(area);
+            performed.add(event);
+        }
     }
 
     private MyTextEvent findUnconcurrentEvent(ArrayList<ArrayList<MyTextEvent>> lists, int[] listIndices) {
@@ -192,18 +191,13 @@ public class EventReplayer {
             MyTextEvent event = lists.get(i).get(listIndices[i]);
             boolean concurrent = false;
             for (int j = 0; j < lists.size(); j++) {
-                if (i == j)
+                if (i == j || listIndices[j] >= lists.get(j).size())
                     continue;
 
-                for (int k = 0; k < listIndices[j]; k++) {
-                    if (!event.happenedBefore(lists.get(j).get(k))) {
-                        concurrent = true;
-                        break;
-                    }
-                }
-
-                if (concurrent)
+                if (!event.happenedBefore(lists.get(j).get(listIndices[j]))) {
+                    concurrent = true;
                     break;
+                }
             }
 
             if (!concurrent)
@@ -257,6 +251,15 @@ public class EventReplayer {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        EventQueue.invokeLater(() -> {
+            for (MyTextEvent event : dec.events)
+                try {
+                    peer.send(event);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+        });
 
         new Thread(() -> acceptFromPeer(peer, false)).start();
     }
