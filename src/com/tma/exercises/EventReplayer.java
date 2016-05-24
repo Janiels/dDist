@@ -211,6 +211,7 @@ public class EventReplayer {
                 }
 
                 try {
+                    peer.send(new RedirectPeer(false, null, 0));
                     peer.send(new Welcome(index));
                 } catch (IOException e) {
                     e.printStackTrace();

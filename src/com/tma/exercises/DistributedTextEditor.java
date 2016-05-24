@@ -151,6 +151,23 @@ public class DistributedTextEditor extends JFrame {
                 return;
             }
 
+            if (!startListening()) {
+                return;
+            }
+
+            new Thread(() -> {
+                while (true) {
+
+                    try (Socket clientSocket = serverSocket.accept();
+                         ObjectOutputStream oos = new ObjectOutputStream(clientSocket.getOutputStream())) {
+                        oos.writeObject(new RedirectPeer(true, ipaddress.getText(), port));
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                        break;
+                    }
+                }
+            }).start();
+
             String host = ipaddress.getText() + ":" + port;
             setTitle("Connecting to " + host + "...");
 
@@ -162,7 +179,7 @@ public class DistributedTextEditor extends JFrame {
 
                 EventQueue.invokeLater(() -> {
                     if (server != null) {
-                        setTitle("Connected to " + host);
+                        setTitle(getTitle() + "- Connected to " + host);
 
                         changed = false;
                         Save.setEnabled(false);
@@ -180,8 +197,17 @@ public class DistributedTextEditor extends JFrame {
 
     private Socket connectToServer(int port) {
         try {
-            return new Socket(ipaddress.getText(), port);
-        } catch (IOException e1) {
+            Socket socket = new Socket(ipaddress.getText(), port);
+            RedirectPeer redirectPeer;
+            try (ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream())) {
+                redirectPeer = (RedirectPeer) objectInputStream.readObject();
+            }
+            if (redirectPeer.shouldRedirect()) {
+                socket.close();
+                return new Socket(redirectPeer.getIpAddress(), redirectPeer.getPort());
+            }
+            return socket;
+        } catch (IOException | ClassNotFoundException e1) {
             return null;
         }
     }
