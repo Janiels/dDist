@@ -19,13 +19,8 @@ public class TextInsertEvent extends MyTextEvent {
     }
 
     @Override
-    void perform(JTextArea area) {
-        area.insert(getText(), getOffset() + getAdjustOffset());
-    }
-
-    @Override
-    void undo(JTextArea area) {
-        area.replaceRange(null, getOffset(), getOffset() + getText().length());
+    void perform(StringBuilder text) {
+        text.insert(getOffset() + getAdjustOffset(), getText());
     }
 
     @Override

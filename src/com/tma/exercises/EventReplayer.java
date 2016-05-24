@@ -92,7 +92,7 @@ public class EventReplayer {
             event.setAdjustOffset(0);
         }
 
-        area.setText("");
+        StringBuilder text = new StringBuilder("");
 
         // Add our new event
         events.add(newEvent);
@@ -117,12 +117,19 @@ public class EventReplayer {
             if (first == null)
                 break;
 
-            redoEvent(first, performed);
+            redoEvent(text, first, performed);
             listIndices[first.getSourceIndex()]++;
         }
 
         for (MyTextEvent event : performed)
             dec.insertAppliedEvent(event);
+
+        int selectStart = area.getSelectionStart();
+        int selectEnd = area.getSelectionEnd();
+        area.setText(text.toString());
+
+        area.setCaretPosition(selectEnd + newEvent.getAdjustOffset(selectEnd));
+        area.moveCaretPosition(selectStart + newEvent.getAdjustOffset(selectStart));
     }
 
     private MyTextEvent findEarliestEvent(ArrayList<ArrayList<MyTextEvent>> lists, int[] listIndices) {
@@ -139,7 +146,7 @@ public class EventReplayer {
         return earliest;
     }
 
-    private void redoEvent(MyTextEvent event, ArrayList<MyTextEvent> performed) {
+    private void redoEvent(StringBuilder text, MyTextEvent event, ArrayList<MyTextEvent> performed) {
         boolean skip = false;
         int adjustOffset = 0;
         for (int j = 0; j < performed.size(); j++) {
@@ -161,7 +168,7 @@ public class EventReplayer {
         if (!skip) {
             event.setAdjustOffset(adjustOffset);
             System.out.println("Reapply: " + event.toString());
-            event.perform(area);
+            event.perform(text);
             performed.add(event);
         }
     }

@@ -65,9 +65,7 @@ public abstract class MyTextEvent implements Serializable {
         this.sourceIndex = sourceIndex;
     }
 
-    abstract void perform(JTextArea area);
-
-    abstract void undo(JTextArea area);
+    abstract void perform(StringBuilder text);
 
     @Override
     public String toString() {

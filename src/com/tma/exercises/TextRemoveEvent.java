@@ -16,13 +16,8 @@ public class TextRemoveEvent extends MyTextEvent {
     }
 
     @Override
-    void perform(JTextArea area) {
-        area.replaceRange(null, getOffset() + getAdjustOffset(), getOffset() + getAdjustOffset() + getLength());
-    }
-
-    @Override
-    void undo(JTextArea area) {
-        area.insert(removed, getOffset());
+    void perform(StringBuilder text) {
+        text.replace(getOffset() + getAdjustOffset(), getOffset() + getAdjustOffset() + getLength(), "");
     }
 
     @Override
