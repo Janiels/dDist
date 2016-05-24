@@ -90,6 +90,14 @@ public class DistributedTextEditor extends JFrame {
             if (!startListening())
                 return;
 
+            try {
+                String localhostAddress = getListenEndPoint();
+                setTitle("I'm listening on " + localhostAddress);
+            } catch (UnknownHostException ex) {
+                area1.setText("Cannot resolve the Internet address of the local host.");
+                return;
+            }
+
             dec.clear();
             System.out.println("I am the server!");
             new Thread(() -> {
@@ -128,15 +136,14 @@ public class DistributedTextEditor extends JFrame {
             return false;
         }
 
-        try {
-            InetAddress localhost = InetAddress.getLocalHost();
-            String localhostAddress = localhost.getHostAddress();
-            setTitle("I'm listening on " + localhostAddress + ":" + port);
-        } catch (UnknownHostException ex) {
-            area1.setText("Cannot resolve the Internet address of the local host.");
-            return false;
-        }
         return true;
+    }
+
+    private String getListenEndPoint() throws UnknownHostException {
+        InetAddress localhost = InetAddress.getLocalHost();
+        String localhostAddress = localhost.getHostAddress();
+        String listenEndPoint = localhostAddress + ":" + serverSocket.getLocalPort();
+        return listenEndPoint;
     }
 
     Action Connect = new AbstractAction("Connect") {
@@ -152,6 +159,14 @@ public class DistributedTextEditor extends JFrame {
             }
 
             if (!startListening()) {
+                return;
+            }
+
+            String listenEndPoint;
+
+            try {
+                listenEndPoint = getListenEndPoint();
+            } catch (UnknownHostException e1) {
                 return;
             }
 
@@ -179,7 +194,7 @@ public class DistributedTextEditor extends JFrame {
 
                 EventQueue.invokeLater(() -> {
                     if (server != null) {
-                        setTitle(getTitle() + "- Connected to " + host);
+                        setTitle("Listening on " + listenEndPoint + " - Connected to " + host);
 
                         changed = false;
                         Save.setEnabled(false);
