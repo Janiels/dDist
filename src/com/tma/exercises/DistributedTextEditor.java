@@ -87,30 +87,27 @@ public class DistributedTextEditor extends JFrame {
         public void actionPerformed(ActionEvent e) {
             saveOld();
             area1.setText("");
-            if (!startListening())
-                return;
-
-            try {
-                String localhostAddress = getListenEndPoint();
-                setTitle("I'm listening on " + localhostAddress);
-            } catch (UnknownHostException ex) {
-                area1.setText("Cannot resolve the Internet address of the local host.");
+            String[] message = new String[1];
+            if (!startListening(message)) {
+                area1.setText(message[0]);
                 return;
             }
+
+            setTitle(message[0]);
 
             dec.clear();
             System.out.println("I am the server!");
             new Thread(() -> {
                 while (true) {
-                    Socket clientSocket;
+                    Peer peer;
                     try {
-                        clientSocket = serverSocket.accept();
+                        peer = new Peer(serverSocket.accept());
                     } catch (IOException ex) {
                         ex.printStackTrace();
                         break;
                     }
 
-                    EventQueue.invokeLater(() -> er.addPeer(clientSocket));
+                    EventQueue.invokeLater(() -> er.addPeer(peer));
                 }
             }).start();
 
@@ -120,30 +117,33 @@ public class DistributedTextEditor extends JFrame {
         }
     };
 
-    private boolean startListening() {
+    private boolean startListening(String[] listeningMessage) {
         int port;
         try {
             port = Integer.parseInt(portNumber.getText());
         } catch (NumberFormatException ex) {
-            area1.setText("Can't parse " + portNumber.getText());
+            listeningMessage[0] = "Can't parse port number";
             return false;
         }
 
         try {
             serverSocket = new ServerSocket(port);
         } catch (IOException ex) {
-            area1.setText("Could not start listening" + System.lineSeparator() + ex);
+            listeningMessage[0] = "Could not start listening";
+            return false;
+        }
+
+        try {
+            InetAddress localhost = InetAddress.getLocalHost();
+            String localhostAddress = localhost.getHostAddress();
+            String listenEndPoint = localhostAddress + ":" + serverSocket.getLocalPort();
+            listeningMessage[0] = "Listening on " + listenEndPoint;
+        } catch (UnknownHostException e) {
+            listeningMessage[0] = "Could not start listening";
             return false;
         }
 
         return true;
-    }
-
-    private String getListenEndPoint() throws UnknownHostException {
-        InetAddress localhost = InetAddress.getLocalHost();
-        String localhostAddress = localhost.getHostAddress();
-        String listenEndPoint = localhostAddress + ":" + serverSocket.getLocalPort();
-        return listenEndPoint;
     }
 
     Action Connect = new AbstractAction("Connect") {
@@ -158,30 +158,21 @@ public class DistributedTextEditor extends JFrame {
                 return;
             }
 
-            if (!startListening()) {
-                return;
-            }
+            String[] message = new String[1];
+            if (startListening(message)) {
+                new Thread(() -> {
+                    while (true) {
 
-            String listenEndPoint;
-
-            try {
-                listenEndPoint = getListenEndPoint();
-            } catch (UnknownHostException e1) {
-                return;
-            }
-
-            new Thread(() -> {
-                while (true) {
-
-                    try (Socket clientSocket = serverSocket.accept();
-                         ObjectOutputStream oos = new ObjectOutputStream(clientSocket.getOutputStream())) {
-                        oos.writeObject(new RedirectPeer(true, ipaddress.getText(), port));
-                    } catch (IOException ex) {
-                        ex.printStackTrace();
-                        break;
+                        try (Socket clientSocket = serverSocket.accept();
+                             ObjectOutputStream oos = new ObjectOutputStream(clientSocket.getOutputStream())) {
+                            oos.writeObject(new RedirectPeer(true, ipaddress.getText(), port));
+                        } catch (IOException ex) {
+                            ex.printStackTrace();
+                            break;
+                        }
                     }
-                }
-            }).start();
+                }).start();
+            }
 
             String host = ipaddress.getText() + ":" + port;
             setTitle("Connecting to " + host + "...");
@@ -190,11 +181,11 @@ public class DistributedTextEditor extends JFrame {
 
             new Thread(() ->
             {
-                final Socket server = connectToServer(port);
+                final Peer server = connectToServer(port);
 
                 EventQueue.invokeLater(() -> {
                     if (server != null) {
-                        setTitle("Listening on " + listenEndPoint + " - Connected to " + host);
+                        setTitle(message[0] + " - Connected to " + host);
 
                         changed = false;
                         Save.setEnabled(false);
@@ -210,19 +201,19 @@ public class DistributedTextEditor extends JFrame {
         }
     };
 
-    private Socket connectToServer(int port) {
+    private Peer connectToServer(int port) {
         try {
-            Socket socket = new Socket(ipaddress.getText(), port);
-            RedirectPeer redirectPeer;
-            try (ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream())) {
-                redirectPeer = (RedirectPeer) objectInputStream.readObject();
-            }
+            Peer peer = new Peer(new Socket(ipaddress.getText(), port));
+
+            RedirectPeer redirectPeer = (RedirectPeer) peer.receive();
+
             if (redirectPeer.shouldRedirect()) {
-                socket.close();
-                return new Socket(redirectPeer.getIpAddress(), redirectPeer.getPort());
+                peer.close();
+                peer = new Peer(new Socket(redirectPeer.getIpAddress(), redirectPeer.getPort()));
             }
-            return socket;
-        } catch (IOException | ClassNotFoundException e1) {
+
+            return peer;
+        } catch (IOException e1) {
             return null;
         }
     }

@@ -32,9 +32,9 @@ public class EventReplayer {
     }
 
     private void acceptFromPeer(Peer peer, boolean isClient) {
-        try (ObjectInputStream in = new ObjectInputStream(peer.getSocket().getInputStream())) {
+        try {
             if (isClient) {
-                Welcome welcome = (Welcome) in.readObject();
+                Welcome welcome = (Welcome) peer.receive();
                 System.out.println("Received welcome! My index is " + welcome.getIndex());
                 EventQueue.invokeLater(() -> {
                     dec.setOurIndex(welcome.getIndex());
@@ -42,7 +42,7 @@ public class EventReplayer {
             }
 
             while (true) {
-                MyTextEvent event = (MyTextEvent) in.readObject();
+                MyTextEvent event = (MyTextEvent) peer.receive();
                 EventQueue.invokeLater(() -> {
                     System.out.println("Receive: " + event);
                     // Make sure later events are timestamped correctly according
@@ -74,11 +74,13 @@ public class EventReplayer {
                     System.out.println("");
                 });
             }
-        } catch (IOException | ClassNotFoundException e) {
+        } catch (IOException ex) {
+            ex.printStackTrace();
+
             try {
                 peer.close();
-            } catch (IOException e1) {
-                e1.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
     }
@@ -198,17 +200,12 @@ public class EventReplayer {
         }
     }
 
-    public void addPeer(Socket socket) {
+    public void addPeer(Peer peer) {
         EventQueue.invokeLater(() -> {
             synchronized (peers) {
                 int index = peers.size() + 1;
 
-                Peer peer;
-                try {
-                    peer = new Peer(socket, index);
-                } catch (IOException ignored) {
-                    return;
-                }
+                peer.setIndex(index);
 
                 try {
                     peer.send(new RedirectPeer(false, null, 0));
@@ -231,14 +228,9 @@ public class EventReplayer {
         });
     }
 
-    public void setServer(Socket socket) {
-        Peer server;
-        try {
-            // Server has index 0
-            server = new Peer(socket, 0);
-        } catch (IOException ignored) {
-            return;
-        }
+    public void setServer(Peer server) {
+        // Server has index 0
+        server.setIndex(0);
 
         synchronized (peers) {
             peers.add(server);
