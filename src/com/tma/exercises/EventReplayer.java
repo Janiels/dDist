@@ -38,13 +38,6 @@ public class EventReplayer {
                 System.out.println("Received welcome! My index is " + welcome.getIndex());
                 EventQueue.invokeLater(() -> {
                     dec.setOurIndex(welcome.getIndex());
-//                    dec.clocksReceived(welcome.getClocks());
-//                    dec.setEnabled(false);
-//                    try {
-//                        area.setText(welcome.getText());
-//                    } finally {
-//                        dec.setEnabled(true);
-//                    }
                 });
             }
 
@@ -104,7 +97,7 @@ public class EventReplayer {
         // Add our new event
         events.add(newEvent);
 
-        // Create peer-local lists of events
+        // Create peer-local lists of events in the correct peer order.
         OptionalInt maxIndex = events.stream().mapToInt(MyTextEvent::getSourceIndex).max();
         ArrayList<ArrayList<MyTextEvent>> lists = new ArrayList<>();
         for (int i = 0; i <= maxIndex.getAsInt(); i++)
@@ -119,66 +112,34 @@ public class EventReplayer {
         int[] listIndices = new int[lists.size()];
         ArrayList<MyTextEvent> performed = new ArrayList<>();
         while (true) {
-            // If any of peer's current events happened first among the events
-            // then do that.
-            MyTextEvent first = findUnconcurrentEvent(lists, listIndices);
-            if (first != null) {
-                redoEvent(first, performed);
-                listIndices[first.getSourceIndex()]++;
-                continue;
-            }
-
-            // No event happened first, so all current events are concurrent.
-            MyTextEvent concurrent = findConcurrentEvent(lists, listIndices);
-            // Do we have anymore events?
-            if (concurrent == null)
+            // Find the earliest event of all peer events
+            MyTextEvent first = findEarliestEvent(lists, listIndices);
+            if (first == null)
                 break;
 
-            redoEvent(concurrent, performed);
-            listIndices[concurrent.getSourceIndex()]++;
+            redoEvent(first, performed);
+            listIndices[first.getSourceIndex()]++;
         }
 
         for (MyTextEvent event : performed)
             dec.insertAppliedEvent(event);
     }
 
-    private MyTextEvent findUnconcurrentEvent(ArrayList<ArrayList<MyTextEvent>> lists, int[] listIndices) {
-        for (int i = 0; i < lists.size(); i++) {
-            if (listIndices[i] >= lists.get(i).size())
-                continue;
-
-            MyTextEvent event = lists.get(i).get(listIndices[i]);
-            boolean concurrent = false;
-            for (int j = 0; j < lists.size(); j++) {
-                if (i == j || listIndices[j] >= lists.get(j).size())
-                    continue;
-
-                if (!event.happenedBefore(lists.get(j).get(listIndices[j]))) {
-                    concurrent = true;
-                    break;
-                }
-            }
-
-            if (!concurrent)
-                return event;
-        }
-
-        return null;
-    }
-
-    private MyTextEvent findConcurrentEvent(ArrayList<ArrayList<MyTextEvent>> lists, int[] listIndices) {
+    private MyTextEvent findEarliestEvent(ArrayList<ArrayList<MyTextEvent>> lists, int[] listIndices) {
+        MyTextEvent earliest = null;
         for (int i = 0; i < listIndices.length; i++) {
             if (listIndices[i] >= lists.get(i).size())
                 continue;
 
-            return lists.get(i).get(listIndices[i]);
+            MyTextEvent event = lists.get(i).get(listIndices[i]);
+            if (earliest == null || event.happenedBefore(earliest))
+                earliest = event;
         }
 
-        return null;
+        return earliest;
     }
 
-    private void redoEvent(MyTextEvent myTextEvent, ArrayList<MyTextEvent> performed) {
-        MyTextEvent event = myTextEvent;
+    private void redoEvent(MyTextEvent event, ArrayList<MyTextEvent> performed) {
         boolean skip = false;
         int adjustOffset = 0;
         for (int j = 0; j < performed.size(); j++) {
