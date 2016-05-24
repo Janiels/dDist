@@ -210,18 +210,18 @@ public class EventReplayer {
                     return;
                 }
 
+                try {
+                    peer.send(new Welcome(index));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
                 for (MyTextEvent event : dec.getEvents())
                     try {
                         peer.send(event);
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
-
-                try {
-                    peer.send(new Welcome(index));
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
 
                 peers.add(peer);
 
