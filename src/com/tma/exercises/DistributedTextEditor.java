@@ -5,10 +5,8 @@ import java.awt.event.*;
 import java.io.*;
 import javax.swing.*;
 import javax.swing.text.*;
-import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.UnknownHostException;
+import java.net.*;
+import java.util.Arrays;
 
 public class DistributedTextEditor extends JFrame {
 
@@ -25,6 +23,7 @@ public class DistributedTextEditor extends JFrame {
     private boolean changed = false;
     private DocumentEventCapturer dec = new DocumentEventCapturer();
     private ServerSocket serverSocket;
+    private Peer server;
 
     public DistributedTextEditor() {
         area1.setFont(new Font("Monospaced", Font.PLAIN, 12));
@@ -126,24 +125,30 @@ public class DistributedTextEditor extends JFrame {
             return false;
         }
 
+        InetAddress[] addresses;
         try {
-            serverSocket = new ServerSocket(port);
-        } catch (IOException ex) {
-            listeningMessage[0] = "Could not start listening";
-            return false;
-        }
-
-        try {
-            InetAddress localhost = InetAddress.getLocalHost();
-            String localhostAddress = localhost.getHostAddress();
-            String listenEndPoint = localhostAddress + ":" + serverSocket.getLocalPort();
-            listeningMessage[0] = "Listening on " + listenEndPoint;
+            addresses = InetAddress.getAllByName(InetAddress.getLocalHost().getHostName());
         } catch (UnknownHostException e) {
             listeningMessage[0] = "Could not start listening";
             return false;
         }
 
-        return true;
+        Arrays.sort(addresses, (ad1, ad2) -> ad1.getHostAddress().compareTo(ad2.getHostAddress()));
+
+        for (InetAddress address : addresses) {
+            if (!(address instanceof Inet4Address))
+                continue;
+
+            try {
+                serverSocket = new ServerSocket(port, 20, address);
+                listeningMessage[0] = "Listening on " + address.getHostAddress() + ":" + port;
+                return true;
+            } catch (IOException ex) {
+            }
+        }
+
+        listeningMessage[0] = "Could not start listening";
+        return false;
     }
 
     Action Connect = new AbstractAction("Connect") {
@@ -158,21 +163,6 @@ public class DistributedTextEditor extends JFrame {
                 return;
             }
 
-            String[] message = new String[1];
-            if (startListening(message)) {
-                new Thread(() -> {
-                    while (true) {
-
-                        try (Socket clientSocket = serverSocket.accept();
-                             ObjectOutputStream oos = new ObjectOutputStream(clientSocket.getOutputStream())) {
-                            oos.writeObject(new RedirectPeer(true, ipaddress.getText(), port));
-                        } catch (IOException ex) {
-                            ex.printStackTrace();
-                            break;
-                        }
-                    }
-                }).start();
-            }
 
             String host = ipaddress.getText() + ":" + port;
             setTitle("Connecting to " + host + "...");
@@ -181,11 +171,11 @@ public class DistributedTextEditor extends JFrame {
 
             new Thread(() ->
             {
-                final Peer server = connectToServer(port);
+                server = connectToServer(port);
 
                 EventQueue.invokeLater(() -> {
                     if (server != null) {
-                        setTitle(message[0] + " - Connected to " + host);
+                        setTitle("Connected to " + server.getIp() + ":" + server.getPort());
 
                         changed = false;
                         Save.setEnabled(false);
@@ -197,6 +187,35 @@ public class DistributedTextEditor extends JFrame {
                         area1.setText("Could not connect!");
                     }
                 });
+
+                if (server != null) {
+                    String[] message = new String[1];
+                    if (startListening(message)) {
+                        EventQueue.invokeLater(() -> setTitle(message[0] + " - " + getTitle()));
+
+                        while (true) {
+                            try (Socket clientSocket = serverSocket.accept();
+                                 ObjectOutputStream oos = new ObjectOutputStream(clientSocket.getOutputStream())) {
+
+                                oos.writeObject(new RedirectPeer(true, server.getIp(), server.getPort()));
+
+                                // Do not close client socket until he tells us it's ok
+                                try (ObjectInputStream iis = new ObjectInputStream(clientSocket.getInputStream())) {
+                                    iis.readObject();
+                                } catch (IOException ex) {
+                                    // Client socket closed, continue
+                                }
+
+                            } catch (IOException ex) {
+                                // Server socket closed
+                                break;
+                            } catch (ClassNotFoundException e1) {
+                                e1.printStackTrace();
+                                break;
+                            }
+                        }
+                    }
+                }
             }).start();
         }
     };
@@ -207,9 +226,13 @@ public class DistributedTextEditor extends JFrame {
 
             RedirectPeer redirectPeer = (RedirectPeer) peer.receive();
 
-            if (redirectPeer.shouldRedirect()) {
+            while (redirectPeer.shouldRedirect()) {
+                // Tell server we're ok
+                peer.send(null);
                 peer.close();
                 peer = new Peer(new Socket(redirectPeer.getIpAddress(), redirectPeer.getPort()));
+
+                redirectPeer = (RedirectPeer) peer.receive();
             }
 
             return peer;

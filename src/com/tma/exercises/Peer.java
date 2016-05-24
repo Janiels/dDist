@@ -51,4 +51,12 @@ public class Peer {
     public Socket getSocket() {
         return socket;
     }
+
+    public String getIp() {
+        return socket.getInetAddress().getHostAddress();
+    }
+
+    public int getPort() {
+        return socket.getPort();
+    }
 }

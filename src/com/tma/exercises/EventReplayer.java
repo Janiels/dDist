@@ -240,14 +240,18 @@ public class EventReplayer {
     }
 
     public void disconnect() {
-        for (Peer peer : peers) {
-            try {
-                peer.close();
-            } catch (IOException e) {
-                e.printStackTrace();
+        synchronized (peers) {
+            for (Peer peer : peers) {
+                try {
+                    peer.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
+
+            peers.clear();
         }
-        send.interrupt();
+
         editor.setDisconnected();
     }
 }
