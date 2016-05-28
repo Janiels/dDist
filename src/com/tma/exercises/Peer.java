@@ -6,10 +6,11 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 
 public class Peer {
-    private Socket socket;
+    private final Socket socket;
     private ObjectInputStream objectInputStream;
-    private ObjectOutputStream objectOutputStream;
+    private final ObjectOutputStream objectOutputStream;
     private int index;
+    private String listenEndPoint;
 
     public Peer(Socket socket) throws IOException {
         this.socket = socket;
@@ -37,7 +38,9 @@ public class Peer {
     }
 
     public void send(Object obj) throws IOException {
-        objectOutputStream.writeObject(obj);
+        synchronized (objectOutputStream) {
+            objectOutputStream.writeObject(obj);
+        }
     }
 
     public void close() throws IOException {
@@ -58,5 +61,13 @@ public class Peer {
 
     public int getPort() {
         return socket.getPort();
+    }
+
+    public String getListenEndPoint() {
+        return listenEndPoint;
+    }
+
+    public void setListenEndPoint(String listenEndPoint) {
+        this.listenEndPoint = listenEndPoint;
     }
 }

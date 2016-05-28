@@ -22,6 +22,7 @@ public class EventReplayer {
     private JTextArea area;
     private final ArrayList<Peer> peers = new ArrayList<>();
     private Thread send;
+    private final ArrayList<String> serverPeerEndPoints = new ArrayList<>();
 
     public EventReplayer(DocumentEventCapturer dec, JTextArea area, DistributedTextEditor editor) {
         this.dec = dec;
@@ -42,37 +43,64 @@ public class EventReplayer {
             }
 
             while (true) {
-                MyTextEvent event = (MyTextEvent) peer.receive();
-                EventQueue.invokeLater(() -> {
-                    System.out.println("Receive: " + event);
-                    // Make sure later events are timestamped correctly according
-                    // to this received one..
-                    dec.clocksReceived(event.getClocks());
+                Object message = peer.receive();
+                if (message instanceof PeerChange) {
+                    PeerChange peerChange = (PeerChange) message;
+                    if (isClient) {
+                        if (peerChange.isConnected()) {
+                            serverPeerEndPoints.add(peerChange.getEndPoint());
+                            System.out.println("Added peer end point '" + peerChange.getEndPoint() + "'");
+                        } else {
+                            boolean removed = serverPeerEndPoints.remove(peerChange.getEndPoint());
+                            System.out.println("Removed peer '" + peerChange.getEndPoint() + "': " + removed);
+                        }
+                    } else {
+                        // Server distributes peer IPs to other peers
+                        assert peerChange.isConnected();
 
-                    // If we're the server then send this event out to all
-                    // other peers
-                    if (!isClient) {
-                        try {
-                            dec.eventHistory.put(event);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
+                        System.out.println("Client '" + peer.getIp() + ":" + peer.getPort() + "' is listening on '" + peerChange.getEndPoint() + "'");
+                        peer.setListenEndPoint(peerChange.getEndPoint());
+
+                        synchronized (peers) {
+                            for (Peer otherPeer : peers) {
+                                if (otherPeer != peer)
+                                    otherPeer.send(peerChange);
+                            }
                         }
                     }
+                } else {
+                    MyTextEvent event = (MyTextEvent) message;
+                    EventQueue.invokeLater(() -> {
+                        System.out.println("Receive: " + event);
+                        // Make sure later events are timestamped correctly according
+                        // to this received one..
+                        dec.clocksReceived(event.getClocks());
 
-                    // Do not capture received events again
-                    dec.setEnabled(false);
-                    try {
-                        performEvent(event);
-                    } catch (Exception e) {
-                        System.err.println(e);
-                        // We catch all exceptions, as an uncaught exception would make the
-                        // EDT unwind, which is not healthy.
-                    } finally {
-                        dec.setEnabled(true);
-                    }
+                        // If we're the server then send this event out to all
+                        // other peers
+                        if (!isClient) {
+                            try {
+                                dec.eventHistory.put(event);
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
+                        }
 
-                    System.out.println("");
-                });
+                        // Do not capture received events again
+                        dec.setEnabled(false);
+                        try {
+                            performEvent(event);
+                        } catch (Exception e) {
+                            System.err.println(e);
+                            // We catch all exceptions, as an uncaught exception would make the
+                            // EDT unwind, which is not healthy.
+                        } finally {
+                            dec.setEnabled(true);
+                        }
+
+                        System.out.println("");
+                    });
+                }
             }
         } catch (IOException ex) {
             ex.printStackTrace();
@@ -81,6 +109,23 @@ public class EventReplayer {
                 peer.close();
             } catch (IOException e) {
                 e.printStackTrace();
+            }
+
+            if (isClient) {
+                serverPeerEndPoints.sort((s1, s2) -> s1.compareTo(s2));
+                if (serverPeerEndPoints.size() > 0)
+                    editor.reconnect(serverPeerEndPoints.get(0));
+            } else {
+                synchronized (peers) {
+                    peers.remove(peer);
+
+                    for (Peer otherPeer : peers) {
+                        try {
+                            otherPeer.send(new PeerChange(false, peer.getListenEndPoint()));
+                        } catch (IOException ignored) {
+                        }
+                    }
+                }
             }
         }
     }
@@ -210,6 +255,12 @@ public class EventReplayer {
                 try {
                     peer.send(new RedirectPeer(false, null, 0));
                     peer.send(new Welcome(index));
+
+                    for (Peer otherPeer : peers) {
+                        String listenEndPoint = otherPeer.getListenEndPoint();
+                        if (listenEndPoint != null)
+                            peer.send(new PeerChange(true, listenEndPoint));
+                    }
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -249,9 +300,27 @@ public class EventReplayer {
                 }
             }
 
+            serverPeerEndPoints.clear();
             peers.clear();
+            dec.clear();
         }
 
         editor.setDisconnected();
+    }
+
+    public void setListenEndPoint(String listenEndPoint) {
+        serverPeerEndPoints.add(listenEndPoint);
+        // Tell server the address we are listening on
+        synchronized (peers) {
+            // Should only be called for clients
+            assert peers.size() == 1;
+            for (Peer peer : peers) {
+                try {
+                    peer.send(new PeerChange(true, listenEndPoint));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 }

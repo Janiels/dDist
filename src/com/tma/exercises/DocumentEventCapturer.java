@@ -124,6 +124,8 @@ public class DocumentEventCapturer extends DocumentFilter {
     public void clear() {
         events.clear();
         eventHistory.clear();
+        for (int i = 0; i < clocks.length; i++)
+            clocks[i] = 0;
     }
 
     public int[] getClocks() {
