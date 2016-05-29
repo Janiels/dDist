@@ -96,8 +96,10 @@ public class DistributedTextEditor extends JFrame {
             return;
         }
 
+        // Set the title to the end point we are listening on.
         setTitle(message[0]);
 
+        // Reset events and set our index. Server is always 0.
         dec.clear();
         dec.setOurIndex(0);
         System.out.println("I am the server!");
@@ -130,6 +132,7 @@ public class DistributedTextEditor extends JFrame {
             }
         }
 
+        // If no address is specified then find the first possible one.
         if (address == null) {
             InetAddress[] addresses;
             try {
@@ -146,12 +149,14 @@ public class DistributedTextEditor extends JFrame {
 
                 try {
                     serverSocket = new ServerSocket(port, 20, potentialAddress);
+                    // Found one!
                     listeningMessage[0] = "Listening on " + getListenEndPoint();
                     return true;
                 } catch (IOException ex) {
                 }
             }
         } else {
+            // Use just the IP given by caller.
             try {
                 serverSocket = new ServerSocket(port, 20, address);
                 listeningMessage[0] = "Listening on " + getListenEndPoint();
@@ -186,11 +191,11 @@ public class DistributedTextEditor extends JFrame {
 
         System.out.println("I am a client!");
 
-        int finalPort = port;
         new Thread(() ->
         {
-            server = connectToServer(ip, finalPort);
+            server = connectToServer(ip, port);
 
+            // Update GUI since we connected.
             EventQueue.invokeLater(() -> {
                 if (server != null) {
                     setTitle("Connected to " + server.getIp() + ":" + server.getPort());
@@ -208,6 +213,7 @@ public class DistributedTextEditor extends JFrame {
 
             if (server != null) {
                 String[] message = new String[1];
+                // Start listening ourselves, so we can redirect new peers to the server.
                 if (startListening(message, null, -1)) {
                     er.setListenEndPoint(getListenEndPoint());
                     EventQueue.invokeLater(() -> setTitle(message[0] + " - " + getTitle()));
@@ -216,9 +222,11 @@ public class DistributedTextEditor extends JFrame {
                         try (Socket clientSocket = serverSocket.accept();
                              ObjectOutputStream oos = new ObjectOutputStream(clientSocket.getOutputStream())) {
 
+                            // Connect to the server instead!
                             oos.writeObject(new RedirectPeer(true, server.getIp(), server.getPort()));
 
-                            // Do not close client socket until he tells us it's ok
+                            // Do not close client socket until he tells us it's ok - otherwise the connection could
+                            // be closed before the client received the redirect message.
                             try (ObjectInputStream iis = new ObjectInputStream(clientSocket.getInputStream())) {
                                 iis.readObject();
                             } catch (IOException ex) {
@@ -244,14 +252,18 @@ public class DistributedTextEditor extends JFrame {
 
     private Peer connectToServer(String ip, int port) {
         try {
+            // Connect...
             Peer peer = new Peer(new Socket(ip, port));
 
+            // If this guy we connected to is not the server, then we should
+            // get redirected to the proper server.
             RedirectPeer redirectPeer = (RedirectPeer) peer.receive();
 
             while (redirectPeer.shouldRedirect()) {
-                // Tell server we're ok
+                // Ok so we should redirect. Tell the peer that we have heard back so he can close us.
                 peer.send(null);
                 peer.close();
+                // Try the new guy instead.
                 peer = new Peer(new Socket(redirectPeer.getIpAddress(), redirectPeer.getPort()));
 
                 redirectPeer = (RedirectPeer) peer.receive();
@@ -343,19 +355,26 @@ public class DistributedTextEditor extends JFrame {
     }
 
     public void reconnect(String endPoint) {
+        // If we are supposed to reconnect to ourself, then make us a server
         boolean isUs = serverSocket != null && endPoint.equals(getListenEndPoint());
         if (isUs) {
-            TextInsertEvent event = new TextInsertEvent(0, area1.getText());
+            String text = area1.getText();
 
+            // Get old address we were listening on
             InetAddress address = serverSocket.getInetAddress();
             int port = serverSocket.getLocalPort();
             disconnect();
 
+            // Start the server. Make sure we listen on the old address and port!
             listen(address, port);
 
-            EventQueue.invokeLater(() -> area1.setText(event.getText()));
+            // Since we will clear when we reconnect and disconnect, just set the text
+            // to what it was. This will add 1 event with the initial text.
+            EventQueue.invokeLater(() -> area1.setText(text));
         } else {
+            // Make sure we clean up after old session..
             disconnect();
+            // Connect to whoever is server now.
             String[] split = endPoint.split(":");
             connect(split[0], Integer.parseInt(split[1]));
         }
