@@ -81,6 +81,7 @@ public class DocumentEventCapturer extends DocumentFilter {
 
     private void insertEvent(MyTextEvent e) {
         if (enabled) {
+
             // This message comes from us!
             e.setSourceIndex(ourIndex);
             incrementOurClock();

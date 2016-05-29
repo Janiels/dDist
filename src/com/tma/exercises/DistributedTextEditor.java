@@ -84,12 +84,14 @@ public class DistributedTextEditor extends JFrame {
 
     Action Listen = new AbstractAction("Listen") {
         public void actionPerformed(ActionEvent e) {
-            listen(null, -1);
+            listen(null, -1, true);
         }
     };
 
-    private void listen(InetAddress address, int port) {
-        area1.setText("");
+    private void listen(InetAddress address, int port, boolean clear) {
+        if (clear)
+            area1.setText("");
+
         String[] message = new String[1];
         if (!startListening(message, address, port)) {
             area1.setText(message[0]);
@@ -99,9 +101,14 @@ public class DistributedTextEditor extends JFrame {
         // Set the title to the end point we are listening on.
         setTitle(message[0]);
 
-        // Reset events and set our index. Server is always 0.
-        dec.clear();
+        // Reset events if we are supposed to.
+        if (clear) {
+            dec.clear();
+        }
+
+        // Set our index. Server is always 0.
         dec.setOurIndex(0);
+
         System.out.println("I am the server!");
         new Thread(() -> {
             while (true) {
@@ -365,12 +372,14 @@ public class DistributedTextEditor extends JFrame {
             int port = serverSocket.getLocalPort();
             disconnect();
 
-            // Start the server. Make sure we listen on the old address and port!
-            listen(address, port);
-
-            // Since we will clear when we reconnect and disconnect, just set the text
-            // to what it was. This will add 1 event with the initial text.
-            EventQueue.invokeLater(() -> area1.setText(text));
+            EventQueue.invokeLater(() -> {
+                // Clear out current events
+                dec.clear();
+                // Set the text to the original. This adds the first original event.
+                area1.setText(text);
+                // Start the server. Make sure we listen on the old address and port!
+                listen(address, port, false);
+            });
         } else {
             // Make sure we clean up after old session..
             disconnect();

@@ -28,12 +28,12 @@ public class TextInsertEvent extends MyTextEvent {
         return String.format("Insert '%s': %s", text, super.toString());
     }
 
-    @Override
-    public int getAdjustOffset(int offset) {
-        if (getOffset() + getAdjustOffset() <= offset)
-            return getText().length();
+@Override
+public int getAdjustOffset(int offset) {
+    if (getOffset() + getAdjustOffset() <= offset)
+        return getText().length();
 
-        return 0;
-    }
+    return 0;
+}
 }
 
